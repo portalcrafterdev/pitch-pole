@@ -147,12 +147,16 @@ class _GameScreenState extends State<GameScreen> {
           game: _game,
           overlayBuilderMap: {
             // The controls sit under the HUD, so the pause button still wins.
-            _controls: (context, game) => ValueListenableBuilder<RunState>(
-                  valueListenable: game.stateNotifier,
-                  builder: (context, state, _) => TouchControls(
-                    onInput: game.press,
-                    gravityUp: state.gravityUp,
-                    showHints: _level.id == 1,
+            _controls: (context, game) => AnimatedBuilder(
+                  animation: progressStore,
+                  builder: (context, _) => ValueListenableBuilder<RunState>(
+                    valueListenable: game.stateNotifier,
+                    builder: (context, state, _) => TouchControls(
+                      onInput: game.press,
+                      gravityUp: state.gravityUp,
+                      scheme: progressStore.controlScheme,
+                      showHints: _level.id == 1,
+                    ),
                   ),
                 ),
             _hud: (context, game) => Hud(game: game, onPause: _openPause),

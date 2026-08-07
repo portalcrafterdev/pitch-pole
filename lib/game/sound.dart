@@ -32,27 +32,93 @@ class Music {
 }
 
 /// Fire and forget sound. Every call is guarded, because a missing or
-/// unavailable audio backend must never take the game down with it: the
-/// puzzle still works in silence.
+/// unavailable audio backend must never take the game down with it: the level
+/// still plays in silence.
+///
+/// Sounds come out of a warm [AudioPool] per effect rather than through
+/// `FlameAudio.play`. That call builds a fresh `AudioPlayer`, hands it an
+/// audio context, sets a release mode and only then loads and plays the
+/// asset — four platform round trips before a click that is meant to land on
+/// the frame the button was pressed. A pool has the players built and the
+/// source already set, so playing is a volume change and a resume.
+///
+/// The pools are static and warmed once for the whole app. Rebuilding them
+/// per level would just move the stutter to the start of every level.
 class SoundPlayer {
   SoundPlayer({required this.enabled, this.musicEnabled = false});
 
   final bool enabled;
   final bool musicEnabled;
 
-  bool _ready = false;
+  /// How many players each effect keeps ready, and the ceiling before spare
+  /// players are released instead of pooled.
+  static const int _minPlayers = 2;
+  static const int _maxPlayers = 4;
 
-  /// The background player is a single global, so this is only ever set up
-  /// once however many levels are opened and closed.
+  /// Low latency players never report completion, so a clip is handed back to
+  /// its pool by hand. Comfortably longer than the longest sound, which a
+  /// test in `sound_assets_test.dart` holds under 500 ms.
+  static const Duration _recycleAfter = Duration(milliseconds: 700);
+
+  static final Map<String, AudioPool> _pools = {};
+
+  /// In flight warm up, so two callers never build the pools twice.
+  static Future<void>? _warming;
+
   static bool _bgmReady = false;
 
-  Future<void> preload() async {
-    if (!enabled || _ready) return;
+  /// Builds every sound pool. Safe to call as often as you like: the work
+  /// happens once. Call it at start up so the first jump of the first level
+  /// is as quick as the thousandth.
+  static Future<void> warmUp() {
+    if (_pools.isNotEmpty) return Future<void>.value();
+    return _warming ??= _buildPools();
+  }
+
+  static Future<void> _buildPools() async {
     try {
       await FlameAudio.audioCache.loadAll(Sfx.all);
-      _ready = true;
+      for (final sfx in Sfx.all) {
+        _pools[sfx] = await AudioPool.create(
+          source: AssetSource(sfx),
+          audioCache: FlameAudio.audioCache,
+          minPlayers: _minPlayers,
+          maxPlayers: _maxPlayers,
+          // Maps to the platform's short sound path, which is the one built
+          // for latency rather than for long files.
+          playerMode: PlayerMode.lowLatency,
+          audioContext: AudioContextConfig(
+            focus: AudioContextConfigFocus.mixWithOthers,
+          ).build(),
+        );
+      }
     } catch (error) {
       debugPrint('Pitchpole: audio unavailable, playing silent ($error)');
+      _pools.clear();
+    } finally {
+      _warming = null;
+    }
+  }
+
+  Future<void> preload() async {
+    if (!enabled) return;
+    await warmUp();
+  }
+
+  void play(String asset, {double volume = 1}) {
+    if (!enabled) return;
+    final pool = _pools[asset];
+    if (pool == null) return;
+    unawaited(_fire(pool, volume));
+  }
+
+  static Future<void> _fire(AudioPool pool, double volume) async {
+    try {
+      final stop = await pool.start(volume: volume);
+      await Future<void>.delayed(_recycleAfter);
+      await stop();
+    } catch (_) {
+      // A sound that will not play is not worth interrupting a run for.
     }
   }
 
@@ -78,15 +144,5 @@ class SoundPlayer {
     } catch (_) {
       // Nothing to do: the level still plays in silence.
     }
-  }
-
-  void play(String asset, {double volume = 1}) {
-    if (!enabled || !_ready) return;
-    unawaited(
-      FlameAudio.play(asset, volume: volume).then(
-        (_) {},
-        onError: (Object _) {},
-      ),
-    );
   }
 }

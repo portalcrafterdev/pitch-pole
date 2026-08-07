@@ -254,7 +254,7 @@ class PitchpoleGame extends FlameGame {
   void _syncScene() {
     final state = sim.state;
 
-    _player.syncTo(state.x, state.y, state.vy);
+    _player.syncTo(state.x, state.y, state.vy, grounded: state.grounded);
 
     final levelTime = state.levelTimeAt(level.runSpeed);
     for (final hopper in _hoppers) {

@@ -38,7 +38,7 @@ class PlayerComponent extends PositionComponent {
   static const int _trailLength = 7;
 
   final Paint _body = Paint()..color = Palette.player;
-  final Paint _foot = Paint()..color = Palette.playerDark;
+  final Paint _limb = Paint()..color = Palette.playerDark;
   final Paint _white = Paint()..color = Palette.eyeWhite;
   final Paint _pupil = Paint()..color = Palette.eyePupil;
   final Paint _trailPaint = Paint()..color = Palette.player;
@@ -48,10 +48,28 @@ class PlayerComponent extends PositionComponent {
   /// Vertical velocity, used only to drift the pupils. Never drives position.
   double _vy = 0;
 
+  /// True while it has a surface under its feet, so the legs know whether to
+  /// run or to tuck.
+  bool _grounded = true;
+
+  /// How far through the running cycle the legs are. Taken from distance
+  /// rather than from a clock, so the stride always matches the speed.
+  double _stride = 0;
+
+  /// How far through a blink, or negative between blinks.
+  double _blink = -1;
+  double _sinceBlink = 0;
+
+  /// One stride covers this much ground. About five and a half steps a second
+  /// at base speed, which is a small creature's run rather than a sprint.
+  static const double _strideLength = 36;
+
   /// Drives position straight from the simulation.
-  void syncTo(double x, double y, double vy) {
+  void syncTo(double x, double y, double vy, {bool grounded = true}) {
     position.setValues(x, y);
     _vy = vy;
+    _grounded = grounded;
+    _stride = x / _strideLength * 2 * pi;
   }
 
   void onFlip({required bool toCeiling}) {
@@ -119,9 +137,32 @@ class PlayerComponent extends PositionComponent {
     _stretch += (_stretchTarget - _stretch) * min(1, dt * 14);
     if (_hurt > 0) _hurt = max(0, _hurt - dt * 3);
 
-    _trail.insert(0, Offset(position.x, position.y));
-    if (_trail.length > _trailLength) _trail.removeLast();
+    // A blink every few seconds. Nothing depends on it, it just stops the
+    // face being a stare.
+    if (_blink >= 0) {
+      _blink += dt;
+      if (_blink > _blinkDuration) {
+        _blink = -1;
+        _sinceBlink = 0;
+      }
+    } else {
+      _sinceBlink += dt;
+      if (_sinceBlink > _blinkEvery) _blink = 0;
+    }
+
+    // Only while airborne. On the ground every sample shares a y, so the
+    // trail piles into a solid slab behind the character that reads as a
+    // rendering fault rather than as speed.
+    if (_grounded) {
+      _trail.clear();
+    } else {
+      _trail.insert(0, Offset(position.x, position.y));
+      if (_trail.length > _trailLength) _trail.removeLast();
+    }
   }
+
+  static const double _blinkEvery = 3.4;
+  static const double _blinkDuration = 0.1;
 
   @override
   void render(Canvas canvas) {
@@ -148,7 +189,7 @@ class PlayerComponent extends PositionComponent {
     canvas.restore();
 
     _body.color = Color.lerp(Palette.player, Palette.bolted, _hurt)!;
-    _foot.color = Color.lerp(Palette.playerDark, Palette.boltedDark, _hurt)!;
+    _limb.color = Color.lerp(Palette.playerDark, Palette.boltedDark, _hurt)!;
 
     final width = size.x / _stretch;
     final height = size.y * _stretch;
@@ -160,33 +201,111 @@ class PlayerComponent extends PositionComponent {
     );
     canvas.rotate(_spin);
 
-    // Two nubs peeking out below the body, so it reads as a creature rather
-    // than a block. Drawn first, so the body overlaps their tops.
-    final footRadius = width * 0.15;
-    final footY = height / 2 - footRadius * 0.4;
-    canvas.drawCircle(Offset(-width * 0.26, footY), footRadius, _foot);
-    canvas.drawCircle(Offset(width * 0.26, footY), footRadius, _foot);
+    // The body does not fill the box. The bottom quarter is left for the
+    // legs, because the box rests exactly on the surface line: a leg drawn
+    // below the body would be underground and invisible.
+    final bodyHeight = height * _bodyFraction;
+
+    // Everything is drawn behind the body first, so the body overlaps where
+    // each limb joins it and nothing shows a seam.
+    _drawEars(canvas, width, height);
+    _drawLegs(canvas, width, height, bodyHeight);
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(-width / 2, -height / 2, width, height),
+        Rect.fromLTWH(-width / 2, -height / 2, width, bodyHeight),
         Radius.circular(width * 0.34),
       ),
       _body,
     );
 
-    // Big eyes in the upper half, so a flipped character reads as upside down.
-    // The pupils lean into the run and drift with the fall, which is most of
-    // what makes it feel alive.
+    _drawFace(canvas, width, height, bodyHeight);
+    canvas.restore();
+  }
+
+  /// How much of the box is body. The rest is legs.
+  static const double _bodyFraction = 0.76;
+
+  /// Two ears on top, laid back by the run. They also say which way is up,
+  /// which is what makes a flipped character read as upside down.
+  void _drawEars(Canvas canvas, double width, double height) {
+    final top = -height / 2;
+    for (final side in [-1.0, 1.0]) {
+      final root = side * width * 0.24;
+      canvas.drawPath(
+        Path()
+          ..moveTo(root - width * 0.10, top + 2)
+          ..lineTo(root + width * 0.10, top + 2)
+          // Swept back, so it reads as moving even in a still frame.
+          ..lineTo(root - width * 0.16, top - height * 0.20)
+          ..close(),
+        _limb,
+      );
+    }
+  }
+
+  /// Two legs cycling out of the bottom. Grounded they run; airborne they
+  /// tuck up, which is what sells a jump without any extra animation.
+  void _drawLegs(Canvas canvas, double width, double height, double bodyHeight) {
+    // Start inside the body so the joint is hidden, and reach the sole of the
+    // box, which is the surface the character is standing on.
+    final hip = -height / 2 + bodyHeight - height * 0.05;
+    final sole = height / 2;
+    final full = sole - hip;
+    final thickness = width * 0.17;
+
+    for (var i = 0; i < 2; i++) {
+      final phase = _stride + i * pi;
+      final swing = _grounded ? sin(phase) : 0.5;
+      // The trailing leg comes off the ground; airborne, both tuck.
+      final lift = _grounded ? max(0.0, cos(phase)) : 1.0;
+
+      final x = width * 0.19 * (i == 0 ? -1 : 1) + swing * width * 0.17;
+      final length = full * (1 - lift * 0.45);
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x - thickness / 2, hip, thickness, length),
+          Radius.circular(thickness / 2),
+        ),
+        _limb,
+      );
+      canvas.drawCircle(Offset(x, hip + length), thickness * 0.58, _limb);
+    }
+  }
+
+  /// Big eyes in the upper half. The pupils lean into the run and drift with
+  /// the fall, which is most of what makes it feel alive.
+  void _drawFace(Canvas canvas, double width, double height,
+      double bodyHeight) {
+    // Measured from the middle of the body, not the middle of the box, so
+    // the face stays centred now that the legs own the bottom quarter.
+    final bodyCentre = -height / 2 + bodyHeight / 2;
     final eyeRadius = width * 0.21;
-    final eyeY = -height * 0.06;
+    final eyeY = bodyCentre - bodyHeight * 0.04;
     final eyeX = width * 0.21;
     final pupilLean = eyeRadius * 0.28;
     final pupilDrift =
         (_vy / kJumpVelocity).clamp(-1.0, 1.0) * eyeRadius * 0.30;
+    final blinking = _blink >= 0;
 
     for (final side in [-1.0, 1.0]) {
       final centre = Offset(side * eyeX, eyeY);
+      if (blinking) {
+        // A closed eye is a line, not a smaller circle.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: centre,
+              width: eyeRadius * 1.8,
+              height: eyeRadius * 0.42,
+            ),
+            Radius.circular(eyeRadius * 0.21),
+          ),
+          _pupil,
+        );
+        continue;
+      }
       canvas.drawCircle(centre, eyeRadius, _white);
       canvas.drawCircle(
         centre.translate(pupilLean, pupilDrift),
@@ -194,6 +313,19 @@ class PlayerComponent extends PositionComponent {
         _pupil,
       );
     }
-    canvas.restore();
+
+    // A small mouth, open a little wider the faster it is falling.
+    final gape = 1 + (_vy.abs() / kJumpVelocity).clamp(0.0, 1.0) * 1.4;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(width * 0.04, bodyCentre + bodyHeight * 0.30),
+          width: width * 0.24,
+          height: width * 0.07 * gape,
+        ),
+        Radius.circular(width * 0.05),
+      ),
+      _pupil,
+    );
   }
 }

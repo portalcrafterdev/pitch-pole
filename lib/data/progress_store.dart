@@ -1,13 +1,29 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Stars per level and the two settings toggles. No backend, no account.
+/// How touch drives the game. The two are exclusive on purpose: if buttons are
+/// on, tapping anywhere else does nothing, and if halves are on there are no
+/// buttons to miss. Mixing them means a thumb resting near a button flips you
+/// into a blade.
+enum ControlScheme {
+  /// The left half of the screen flips, the right half jumps.
+  halves,
+
+  /// Explicit pads: up and down on the left, jump on the right.
+  buttons;
+
+  static ControlScheme fromName(String? value) =>
+      values.firstWhere((s) => s.name == value, orElse: () => halves);
+}
+
+/// Stars per level and the settings toggles. No backend, no account.
 class ProgressStore extends ChangeNotifier {
   static const String _starsPrefix = 'stars.';
   static const String _bestPrefix = 'best.';
   static const String _hapticsKey = 'settings.haptics';
   static const String _soundKey = 'settings.sound';
   static const String _musicKey = 'settings.music';
+  static const String _controlsKey = 'settings.controls';
 
   SharedPreferences? _prefs;
   final Map<int, int> _stars = {};
@@ -15,10 +31,12 @@ class ProgressStore extends ChangeNotifier {
   bool _haptics = true;
   bool _sound = true;
   bool _music = true;
+  ControlScheme _controls = ControlScheme.halves;
 
   bool get hapticsEnabled => _haptics;
   bool get soundEnabled => _sound;
   bool get musicEnabled => _music;
+  ControlScheme get controlScheme => _controls;
 
   Future<void> load() async {
     final prefs = _prefs = await SharedPreferences.getInstance();
@@ -38,6 +56,7 @@ class ProgressStore extends ChangeNotifier {
     _haptics = prefs.getBool(_hapticsKey) ?? true;
     _sound = prefs.getBool(_soundKey) ?? true;
     _music = prefs.getBool(_musicKey) ?? true;
+    _controls = ControlScheme.fromName(prefs.getString(_controlsKey));
     notifyListeners();
   }
 
@@ -104,6 +123,13 @@ class ProgressStore extends ChangeNotifier {
     _music = enabled;
     notifyListeners();
     await _prefs?.setBool(_musicKey, enabled);
+  }
+
+  Future<void> setControlScheme(ControlScheme scheme) async {
+    if (_controls == scheme) return;
+    _controls = scheme;
+    notifyListeners();
+    await _prefs?.setString(_controlsKey, scheme.name);
   }
 
   Future<void> resetProgress() async {

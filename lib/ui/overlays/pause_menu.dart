@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/progress_store.dart';
 import '../palette.dart';
 import 'overlay_panel.dart';
 
@@ -47,6 +48,102 @@ class PauseMenu extends StatelessWidget {
           onPressed: onLevels,
         ),
       ],
+      // The scheme is worth changing here rather than only back on the home
+      // screen: you find out which one suits you while you are running, not
+      // from a menu. Resuming picks it up immediately.
+      child: const _ControlSchemeToggle(),
+    );
+  }
+}
+
+class _ControlSchemeToggle extends StatelessWidget {
+  const _ControlSchemeToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: progressStore,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'CONTROLS',
+            style: TextStyle(
+              color: Palette.textMuted,
+              fontSize: 10,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final scheme in ControlScheme.values)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: _SchemeChip(
+                    scheme: scheme,
+                    selected: progressStore.controlScheme == scheme,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SchemeChip extends StatelessWidget {
+  const _SchemeChip({required this.scheme, required this.selected});
+
+  final ControlScheme scheme;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = scheme == ControlScheme.halves ? 'HALVES' : 'BUTTONS';
+    return Material(
+      color: selected
+          ? Palette.door.withValues(alpha: 0.16)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => progressStore.setControlScheme(scheme),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Palette.door.withValues(alpha: selected ? 0.55 : 0.16),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                scheme == ControlScheme.halves
+                    ? Icons.vertical_split_rounded
+                    : Icons.gamepad_rounded,
+                size: 15,
+                color: selected ? Palette.door : Palette.textMuted,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Palette.door : Palette.textMuted,
+                  fontSize: 12,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

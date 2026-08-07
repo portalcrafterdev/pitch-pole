@@ -84,13 +84,51 @@ class BoltedEnemy extends PositionComponent {
       _body,
     );
 
+    // Bolts, so it reads as fixed to its surface rather than resting on it.
+    final boltY = onCeiling ? bodyTop + 3.5 : bodyTop + bodyHeight - 3.5;
+    for (final side in [0.16, 0.84]) {
+      canvas.drawCircle(Offset(size.x * side, boltY), 1.6, _crown);
+    }
+
     final eyeRadius = size.x * 0.17;
-    final eyeY = bodyTop + bodyHeight * 0.45;
+    final eyeY = bodyTop + bodyHeight * 0.46;
+    // Pupils tucked towards the player, so it reads as watching the run come.
+    final glare = -eyeRadius * 0.22;
     for (final side in [0.30, 0.70]) {
       final centre = Offset(size.x * side, eyeY);
       canvas.drawCircle(centre, eyeRadius, _white);
-      canvas.drawCircle(centre, eyeRadius * 0.52, _pupil);
+      canvas.drawCircle(centre.translate(glare, 0), eyeRadius * 0.52, _pupil);
     }
+
+    // Brows angled down towards the middle: the whole face is a scowl, which
+    // is the cheapest way to say do not touch this one.
+    for (final side in [0.30, 0.70]) {
+      final inner = side < 0.5 ? 1.0 : -1.0;
+      final x = size.x * side;
+      final browY = eyeY - eyeRadius * 1.25;
+      canvas.drawPath(
+        Path()
+          ..moveTo(x - eyeRadius * 1.1, browY - (onCeiling ? -1.6 : 1.6) * inner)
+          ..lineTo(x + eyeRadius * 1.1, browY + (onCeiling ? -1.6 : 1.6) * inner)
+          ..lineTo(x + eyeRadius * 1.1, browY + eyeRadius * 0.5)
+          ..lineTo(x - eyeRadius * 1.1, browY + eyeRadius * 0.5)
+          ..close(),
+        _crown,
+      );
+    }
+
+    // A flat gritted mouth under the eyes.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(size.x / 2, eyeY + eyeRadius * 1.9),
+          width: size.x * 0.42,
+          height: 2.4,
+        ),
+        const Radius.circular(1.2),
+      ),
+      _crown,
+    );
 
     canvas.restore();
   }

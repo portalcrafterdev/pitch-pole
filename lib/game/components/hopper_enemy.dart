@@ -70,14 +70,42 @@ class HopperEnemy extends PositionComponent {
     // creature at a glance.
     final eyeY = top + height * 0.38;
     final eyeRadius = size.x * 0.105;
-    canvas.drawCircle(Offset(size.x * 0.32, eyeY), eyeRadius, _face);
-    canvas.drawCircle(Offset(size.x * 0.68, eyeY), eyeRadius, _face);
 
-    final mouthY = top + height * 0.68;
+    // In the air its eyes go wide and its mouth opens; crouched to launch it
+    // screws them shut. Both are tells the player can read on approach.
+    final airborne = _height > 0;
+    final open = airborne ? 1.35 : 1.0;
+
+    if (_crouch > 0.5) {
+      for (final side in [0.32, 0.68]) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset(size.x * side, eyeY),
+              width: eyeRadius * 2.6,
+              height: eyeRadius * 0.7,
+            ),
+            Radius.circular(eyeRadius * 0.35),
+          ),
+          _face,
+        );
+      }
+    } else {
+      for (final side in [0.32, 0.68]) {
+        canvas.drawCircle(
+          Offset(size.x * side, eyeY),
+          eyeRadius * open,
+          _face,
+        );
+      }
+    }
+
+    final mouthY = top + height * 0.66;
+    final mouthHeight = size.y * 0.09 * (airborne ? 2.1 : 1.0);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.x * 0.3, mouthY, size.x * 0.4, size.y * 0.09),
-        Radius.circular(size.y * 0.045),
+        Rect.fromLTWH(size.x * 0.3, mouthY, size.x * 0.4, mouthHeight),
+        Radius.circular(mouthHeight / 2),
       ),
       _face,
     );

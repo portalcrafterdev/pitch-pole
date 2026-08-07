@@ -95,6 +95,7 @@ class PanelButton extends StatelessWidget {
     this.icon,
     this.filled = false,
     this.accent = Palette.text,
+    this.compact = false,
   });
 
   final String label;
@@ -103,13 +104,17 @@ class PanelButton extends StatelessWidget {
   final bool filled;
   final Color accent;
 
+  /// Shorter, for a landscape phone where the whole page has to fit in about
+  /// 340 points of height.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: compact ? 8 : 10),
       child: SizedBox(
         width: double.infinity,
-        height: 52,
+        height: compact ? 44 : 52,
         child: Material(
           color: filled ? accent.withValues(alpha: 0.16) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),

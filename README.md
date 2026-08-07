@@ -5,15 +5,22 @@ never stops. One button flips gravity so it falls to the ceiling and runs
 upside down; another jumps off whichever surface it is standing on. Reach the
 door at the end.
 
-The full design lives in [CLAUDE.md](CLAUDE.md).
-
 ## Run it
+
+Android and iOS only. The desktop and web targets were removed on purpose:
+the game is landscape, touch first and built around a phone's frame timing, so
+shipping a build nobody would play only meant four more platform folders to
+keep working.
 
 ```bash
 flutter pub get
-flutter run            # or: flutter run -d chrome
-flutter test           # 157 tests: physics, levels, scene
+flutter run            # a connected phone or an emulator
+flutter test           # 172 tests: physics, levels, scene, controls, layout
+flutter build apk      # or: flutter build ipa
 ```
+
+The keyboard controls below still work, on an emulator or a phone with a
+keyboard attached, and they are what the tests drive.
 
 | Input | Action |
 | --- | --- |
@@ -24,8 +31,25 @@ flutter test           # 157 tests: physics, levels, scene
 | Esc | Pause |
 
 Up and Down are absolute, never a toggle: pressing Up while already on the
-ceiling does nothing. On touch, the left half of the screen flips and the right
-half jumps.
+ceiling does nothing.
+
+## Touch
+
+Landscape only, both ways round — the play field is 560 by 220, so portrait
+would letterbox it into a strip. The app sets the orientation itself, which
+overrides a device rotation lock on purpose.
+
+Two schemes, picked in settings:
+
+| | How it works |
+| --- | --- |
+| **Screen halves** (default) | Left half flips, right half jumps. Nothing small to miss. The flip is a toggle, because a half cannot say which way it goes. |
+| **Buttons** | Two pads bottom left for ceiling and floor, one bottom right for jump. Absolute flips, exactly like the arrow keys. |
+
+They are exclusive, and `test/touch_controls_test.dart` holds them to it: with
+buttons on, a tap anywhere but a pad does nothing; with halves on, there are no
+buttons on screen. If both were live, a thumb resting on what looks like empty
+screen would flip you into a blade.
 
 ## How it is put together
 
@@ -81,6 +105,42 @@ A blade is only 26 units wide, so it threatens for about a tenth of a second —
 the skill is reading which side is open on approach, not reacting. A stone at
 full extension closes the whole column for about half a second, so it is a hard
 gate rather than a choice.
+
+## The cast
+
+All three are drawn in code, not sprites, so they animate off the simulation
+rather than off a frame counter.
+
+- **The runner** has legs that cycle out of its stride, and the stride comes
+  from distance rather than from a clock, so the steps always match the speed.
+  Airborne the legs tuck, which is what sells a jump without any extra
+  animation. It blinks, its pupils lean into the run and drift with the fall,
+  and its ears lie back so a flipped character reads as upside down.
+- **The bolted enemy** scowls: angled brows, a gritted mouth, pupils tucked
+  towards the oncoming run, and visible bolts so it reads as fixed to its
+  surface rather than resting on it.
+- **The hopper** screws its eyes shut as it crouches to launch, then goes
+  wide eyed and open mouthed in the air. Both are tells, not decoration: the
+  crouch is the player's warning that it is about to leave the ground.
+
+Everything is drawn inside the hit box, which is itself 3 units smaller per
+side than the sprite. A spike can never look like it reached further than it
+kills.
+
+## The forest
+
+The setting is a forest at dusk: two receding tree lines on parallax, light
+through the canopy, low mist, and fireflies drifting in the view so an empty
+stretch still has something moving in it. The floor is earth under a moss cap
+with grass leaning past; the ceiling is the underside of the canopy.
+
+All of it is near black green and brown, because the rule underneath has not
+changed — the cast and the finish line must be the only high contrast things on
+screen. Scenery scrolls, so anything bright in it would read as a threat.
+
+Every shape is rolled once from a fixed seed and drawn in viewport space, so
+the background costs the same however long the level is, and it is the same
+forest on every device.
 
 ## Finishing
 
@@ -153,6 +213,15 @@ for into `assets/audio` as 16 bit mono WAV: a click on jump, a whoosh on flip,
 a soft thud on landing, a dull thump on death. Nobody recorded them, but they
 are the real shipped assets and regeneration is deterministic. Tweak the
 numbers in the tool rather than editing binaries.
+
+Sounds play out of a warm `AudioPool` per effect, not through `FlameAudio.play`.
+That call builds a fresh `AudioPlayer`, hands it an audio context, sets a
+release mode and only then loads and plays the asset — four platform round
+trips before a click that is supposed to land on the frame the button was
+pressed, which is exactly why jumps used to sound late. A pool keeps the
+players built with the source already set, so playing is a volume change and a
+resume. The pools are static and warmed once during the menu, because building
+them per level would only move the stutter to the start of every level.
 
 It also writes `music.wav`, an eight second loop of A minor at 120 BPM: a bass
 pulse on each beat and a pad, no melody, so it fills a quiet stretch without

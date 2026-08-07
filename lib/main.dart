@@ -1,18 +1,36 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'data/progress_store.dart';
+import 'game/sound.dart';
 import 'ui/palette.dart';
 import 'ui/screens/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // The play field is 560 by 220, so portrait would letterbox the game into a
+  // thin strip across the middle. Landscape only, and both ways round, so the
+  // phone can be held either way. Setting this overrides a device rotation
+  // lock, which is the whole point: the player should never have to unlock
+  // rotation by hand to be able to see the level.
   await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+
+  // Full bleed, so the status and navigation bars do not eat the band.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
   await progressStore.load();
+
+  // Build the sound pools while the menu is up, so the first jump of the
+  // first level lands as quickly as the thousandth. Not awaited: a device
+  // with no working audio should still reach the menu immediately.
+  if (progressStore.soundEnabled) unawaited(SoundPlayer.warmUp());
+
   runApp(const PitchpoleApp());
 }
 
