@@ -14,6 +14,7 @@ LevelModel level({
   List<Hopper> hoppers = const [],
   List<Blade> blades = const [],
   List<Stone> stones = const [],
+  List<Fire> fires = const [],
   List<double> checkpoints = const [2000, 4000],
 }) =>
     LevelModel(
@@ -25,6 +26,7 @@ LevelModel level({
       hoppers: hoppers,
       blades: blades,
       stones: stones,
+      fires: fires,
       checkpoints: checkpoints,
     );
 
@@ -405,6 +407,84 @@ void main() {
       // Mid slam it owns the whole column.
       final slam = stoneBox(400, onCeiling: true, offset: kStoneReach);
       expect(slam.bottom, kFloorSurfaceY);
+    });
+  });
+
+  group('fires', () {
+    const period = 2.6;
+
+    test('a vent is dark, warns, burns, and goes out', () {
+      expect(fireHeightAt(0, period), 0, reason: 'dark');
+      expect(fireHeightAt(kFireWarnTime - 0.01, period), 0,
+          reason: 'still dark through the whole warning');
+      expect(fireWarningAt(kFireWarnTime - 0.01, period), greaterThan(0.9),
+          reason: 'but glowing, which is the tell');
+
+      expect(fireHeightAt(kFireWarnTime + kFireRiseTime, period),
+          closeTo(kFireReach, 0.001));
+      expect(fireHeightAt(kFireCycleTime, period), closeTo(0, 0.001));
+      expect(fireHeightAt(period - 0.01, period), 0, reason: 'dark again');
+    });
+
+    test('the warning glow is over before anything comes out', () {
+      expect(fireWarningAt(kFireWarnTime, period), 0);
+      expect(fireHeightAt(kFireWarnTime + 0.01, period), greaterThan(0));
+    });
+
+    test('a lit fire cannot be jumped, but the far surface is clear', () {
+      final flame = fireBox(400, onCeiling: false, height: kFireReach);
+
+      // At the peak of a jump the character is still inside the flame.
+      final jumping = playerBox(400 - kPlayerSize / 2, kMaxPlayerY - kJumpPeak);
+      expect(jumping.deflate(kHitboxShrink).overlaps(flame.deflate(kHitboxShrink)),
+          isTrue,
+          reason: 'a fire has to be flipped away from, not hopped');
+
+      // On the ceiling it is nowhere near.
+      final flipped = playerBox(400 - kPlayerSize / 2, kMinPlayerY);
+      expect(flipped.deflate(kHitboxShrink).overlaps(flame.deflate(kHitboxShrink)),
+          isFalse,
+          reason: 'the other surface has to actually be safe');
+    });
+
+    test('running past a dark vent is free', () {
+      // x = 400 is reached at t = 2s. With this phase the vent is dark then.
+      final model = level(
+        fires: const [
+          Fire(x: 400, surface: Surface.floor, period: period, phase: 0.6),
+        ],
+      );
+      final index = LevelIndex(model);
+
+      expect(fireHeightAt(2.0 + 0.6, period), 0);
+      expect(index.hits(RunState(x: 400 - kPlayerSize / 2)), isFalse);
+    });
+
+    test('running into a lit vent kills', () {
+      final model = level(
+        fires: const [
+          Fire(x: 400, surface: Surface.floor, period: period, phase: 0.0),
+        ],
+      );
+      final index = LevelIndex(model);
+
+      // t = 2s into a cycle that warns for 0.45 then burns: fully alight.
+      expect(fireHeightAt(2.0, period), 0,
+          reason: '2.0 is past the burn, so pick a moment inside it');
+
+      final lit = level(
+        fires: [
+          Fire(
+            x: 400,
+            surface: Surface.floor,
+            period: period,
+            // Lands the hold phase exactly on t = 2s.
+            phase: period - 2.0 + kFireWarnTime + kFireRiseTime + 0.1,
+          ),
+        ],
+      );
+      expect(LevelIndex(lit).hits(RunState(x: 400 - kPlayerSize / 2)), isTrue);
+      expect(index.hits(RunState(x: 400 - kPlayerSize / 2)), isFalse);
     });
   });
 

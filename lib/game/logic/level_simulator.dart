@@ -15,9 +15,11 @@ class LevelIndex {
       : _bolted = [...level.bolted]..sort((a, b) => a.x.compareTo(b.x)),
         _hoppers = [...level.hoppers]..sort((a, b) => a.x.compareTo(b.x)),
         _blades = [...level.blades]..sort((a, b) => a.x.compareTo(b.x)),
-        _stones = [...level.stones]..sort((a, b) => a.x.compareTo(b.x)) {
+        _stones = [...level.stones]..sort((a, b) => a.x.compareTo(b.x)),
+        _fires = [...level.fires]..sort((a, b) => a.x.compareTo(b.x)) {
     _bladeX = [for (final e in _blades) e.x];
     _stoneX = [for (final e in _stones) e.x];
+    _fireX = [for (final e in _fires) e.x];
     _boltedX = [for (final e in _bolted) e.x];
     _hopperX = [for (final e in _hoppers) e.x];
     for (final enemy in _bolted) {
@@ -42,6 +44,11 @@ class LevelIndex {
       _stoneLeft.add(stone.x - kStoneSize / 2 + kHitboxShrink);
       _stoneRight.add(stone.x + kStoneSize / 2 - kHitboxShrink);
     }
+    for (final fire in _fires) {
+      _fireCeiling.add(fire.surface.isCeiling);
+      _fireLeft.add(fire.x - kFireWidth / 2 + kHitboxShrink);
+      _fireRight.add(fire.x + kFireWidth / 2 - kHitboxShrink);
+    }
   }
 
   final LevelModel level;
@@ -49,10 +56,12 @@ class LevelIndex {
   final List<Hopper> _hoppers;
   final List<Blade> _blades;
   final List<Stone> _stones;
+  final List<Fire> _fires;
   late final List<double> _boltedX;
   late final List<double> _hopperX;
   late final List<double> _bladeX;
   late final List<double> _stoneX;
+  late final List<double> _fireX;
 
   // Flat hit box edges. The solver calls this hundreds of thousands of times
   // per level, so nothing here allocates.
@@ -72,6 +81,10 @@ class LevelIndex {
   final List<bool> _stoneCeiling = [];
   final List<double> _stoneLeft = [];
   final List<double> _stoneRight = [];
+
+  final List<bool> _fireCeiling = [];
+  final List<double> _fireLeft = [];
+  final List<double> _fireRight = [];
 
   static const double _reach = kBoltedWidth;
   static const double _hopperInnerSize = kHopperSize - kHitboxShrink * 2;
@@ -97,7 +110,12 @@ class LevelIndex {
       }
     }
 
-    if (_hoppers.isEmpty && _blades.isEmpty && _stones.isEmpty) return false;
+    if (_hoppers.isEmpty &&
+        _blades.isEmpty &&
+        _stones.isEmpty &&
+        _fires.isEmpty) {
+      return false;
+    }
     final levelTime = state.x / level.runSpeed;
 
     final period = level.hopPeriod;
@@ -129,6 +147,20 @@ class LevelIndex {
           ? kCeilingSurfaceY + offset + kHitboxShrink
           : kFloorSurfaceY - offset - kStoneSize + kHitboxShrink;
       if (top < stoneTop + _stoneInnerSize && stoneTop < bottom) return true;
+    }
+
+    for (var i = _lowerBound(_fireX, from);
+        i < _fires.length && _fireX[i] <= to;
+        i++) {
+      if (left >= _fireRight[i] || _fireLeft[i] >= right) continue;
+      // The flame is the hit box, so a dark vent cannot kill anything and a
+      // short one only catches you low down.
+      final height = _fires[i].heightAt(levelTime) - kHitboxShrink * 2;
+      if (height <= 0) continue;
+      final fireTop = _fireCeiling[i]
+          ? kCeilingSurfaceY + kHitboxShrink
+          : kFloorSurfaceY - kHitboxShrink - height;
+      if (top < fireTop + height && fireTop < bottom) return true;
     }
 
     return false;
@@ -405,6 +437,19 @@ const double kBladeClearance = 200;
 /// Any faster than this and a blade cannot be read on approach.
 const double kMinBladePeriod = 1.2;
 
+/// A flame reaches most of the way across the band, so a vent needs room at
+/// the start and the door like a blade does.
+const double kFireClearance = 200;
+
+/// How long a vent has to stay dark between burns. Without this a fire with a
+/// short period is lit nearly all the time, which turns it into a bolted
+/// enemy that happens to flicker.
+const double kMinFireDarkTime = 0.9;
+
+/// Two fires facing each other closer than this could both be lit as the
+/// character arrives, which closes the band with no way through.
+const double kOppositeFireGap = 260;
+
 /// The longest empty stretch allowed once a level is under way. At base speed
 /// this is 3.5 seconds of holding still, which is already the edge of dead
 /// time; anything more and the player is watching rather than playing.
@@ -522,6 +567,34 @@ LevelValidation validateLevel(LevelModel level) {
     if (stone.phase < 0 || stone.phase >= stone.period) {
       problems.add('stone phase ${stone.phase} is outside 0 to '
           '${stone.period}');
+    }
+  }
+
+  for (final fire in level.fires) {
+    if (fire.x <= kFireClearance ||
+        fire.x >= level.length - kFireClearance) {
+      problems.add('fire at ${fire.x} is inside a clearance');
+    }
+    if (fire.period <= kFireCycleTime + kMinFireDarkTime) {
+      problems.add('fire period ${fire.period} leaves less than '
+          '${kMinFireDarkTime}s of dark track to run through');
+    }
+    if (fire.phase < 0 || fire.phase >= fire.period) {
+      problems.add('fire phase ${fire.phase} is outside 0 to ${fire.period}');
+    }
+  }
+
+  // Two fires on opposite surfaces close together could both be lit as the
+  // character arrives, which closes the band with no way through.
+  for (var i = 0; i < level.fires.length; i++) {
+    for (var j = i + 1; j < level.fires.length; j++) {
+      final a = level.fires[i];
+      final b = level.fires[j];
+      if (a.surface == b.surface) continue;
+      if ((a.x - b.x).abs() < kOppositeFireGap) {
+        problems.add('fires at ${a.x} and ${b.x} face each other closer than '
+            '$kOppositeFireGap apart');
+      }
     }
   }
 

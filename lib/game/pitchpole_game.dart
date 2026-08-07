@@ -10,6 +10,7 @@ import '../ui/palette.dart';
 import 'components/blade_obstacle.dart';
 import 'components/bolted_enemy.dart';
 import 'components/door.dart';
+import 'components/fire_obstacle.dart';
 import 'components/hopper_enemy.dart';
 import 'components/stone_obstacle.dart';
 import 'components/parallax_backdrop.dart';
@@ -68,6 +69,7 @@ class PitchpoleGame extends FlameGame {
   final List<HopperEnemy> _hoppers = [];
   final List<BladeObstacle> _blades = [];
   final List<StoneObstacle> _stones = [];
+  final List<FireObstacle> _fires = [];
 
   final Random _random = Random();
   final List<RunInput> _queued = [];
@@ -114,6 +116,12 @@ class PitchpoleGame extends FlameGame {
     for (final stone in level.stones) {
       final component = StoneObstacle(stone);
       _stones.add(component);
+      world.add(component);
+    }
+
+    for (final fire in level.fires) {
+      final component = FireObstacle(fire);
+      _fires.add(component);
       world.add(component);
     }
 
@@ -265,6 +273,9 @@ class PitchpoleGame extends FlameGame {
     }
     for (final stone in _stones) {
       stone.syncTo(levelTime);
+    }
+    for (final fire in _fires) {
+      fire.syncTo(levelTime);
     }
 
     if (_shake == 0) camera.viewfinder.position = _cameraTarget();

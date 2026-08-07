@@ -74,6 +74,33 @@ const double kStoneCycleTime = kStoneFallTime + kStoneHoldTime + kStoneRiseTime;
 /// How far a stone travels from its own surface at full extension.
 const double kStoneReach = kBandHeight - kStoneSize;
 
+/// A fire vent sits flush with one surface, dark, and then erupts. It reaches
+/// higher than the character can jump, so the only answer is the other
+/// surface — but only while it is lit. That is what separates it from a
+/// bolted enemy: a bolted forces a flip, a fire forces a flip *now*.
+const double kFireWidth = 22;
+
+/// How far a flame reaches from its own surface at full height. Above the
+/// 60 unit jump peak so it cannot be hopped, and far enough below the 120
+/// unit band that the opposite surface stays clear.
+const double kFireReach = 70;
+
+const double kFirePeriod = 2.6;
+
+/// The vent glows for this long before anything comes out. This is the tell,
+/// and it is why a fire is readable rather than a trap.
+const double kFireWarnTime = 0.45;
+
+const double kFireRiseTime = 0.18;
+const double kFireHoldTime = 0.45;
+const double kFireFallTime = 0.30;
+
+/// How long the flame is out for, from first spark to gone.
+const double kFireBurnTime = kFireRiseTime + kFireHoldTime + kFireFallTime;
+
+/// One full warning and burn. A vent's period has to be longer than this.
+const double kFireCycleTime = kFireWarnTime + kFireBurnTime;
+
 /// Cosmetic only. Never part of the hit box.
 const double kBoltedBob = 1.5;
 
@@ -193,6 +220,38 @@ Box stoneBox(double x, {required bool onCeiling, required double offset}) =>
           : kFloorSurfaceY - offset - kStoneSize,
       kStoneSize,
       kStoneSize,
+    );
+
+/// How far a flame reaches from its own surface, [cycleTime] seconds into its
+/// cycle. Zero while the vent is dark, including the whole warning.
+double fireHeightAt(double cycleTime, double period) {
+  final cycle = cycleTime % period;
+  if (cycle < kFireWarnTime) return 0;
+
+  final burn = cycle - kFireWarnTime;
+  if (burn < kFireRiseTime) return kFireReach * (burn / kFireRiseTime);
+  if (burn < kFireRiseTime + kFireHoldTime) return kFireReach;
+  if (burn < kFireBurnTime) {
+    final t = (burn - kFireRiseTime - kFireHoldTime) / kFireFallTime;
+    return kFireReach * (1 - t);
+  }
+  return 0;
+}
+
+/// 0 to 1 across the warning, then 0 once it is alight. Drives the glow the
+/// player reads on approach, and nothing else.
+double fireWarningAt(double cycleTime, double period) {
+  final cycle = cycleTime % period;
+  return cycle < kFireWarnTime ? cycle / kFireWarnTime : 0;
+}
+
+/// A flame's box at [height] above its own surface. [x] is its centre. The
+/// box is the flame itself, so a dark vent cannot kill anything.
+Box fireBox(double x, {required bool onCeiling, required double height}) => Box(
+      x - kFireWidth / 2,
+      onCeiling ? kCeilingSurfaceY : kFloorSurfaceY - height,
+      kFireWidth,
+      height,
     );
 
 /// A hopper's drawn box at [height] above its own surface. [x] is its centre.

@@ -37,7 +37,8 @@ void main(List<String> args) {
         '${level.runSpeed.round()}/s  '
         'hop ${level.hopPeriod.toStringAsFixed(2)}  '
         '${level.bolted.length}B ${level.hoppers.length}H '
-        '${level.blades.length}K ${level.stones.length}S  '
+        '${level.blades.length}K ${level.stones.length}S '
+        '${level.fires.length}F  '
         '${plan.actions.toString().padLeft(2)} inputs');
     if (verbose) stdout.writeln('    $plan');
   }

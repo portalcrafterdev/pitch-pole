@@ -50,6 +50,16 @@ class Palette {
   static const Color stone = Color(0xFFA98F6F);
   static const Color stoneDark = Color(0xFF7C6549);
 
+  /// Fire, erupts from one surface on a rhythm. Three shades so a flame reads
+  /// hot in the middle and cooler at the tip.
+  static const Color fireCore = Color(0xFFFFF0A8);
+  static const Color fireMid = Color(0xFFFF9A2E);
+  static const Color fireEdge = Color(0xFFE8452B);
+
+  /// The vent it comes out of, and the glow that warns you it is about to.
+  static const Color vent = Color(0xFF4A3A32);
+  static const Color ventHot = Color(0xFFFF6A2A);
+
   /// The finish line and the accent for anything that means "you are through".
   /// Far brighter than any leaf, so it never gets lost in the forest.
   static const Color door = Color(0xFF35E39A);

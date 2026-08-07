@@ -15,7 +15,7 @@ keep working.
 ```bash
 flutter pub get
 flutter run            # a connected phone or an emulator
-flutter test           # 172 tests: physics, levels, scene, controls, layout
+flutter test           # 182 tests: physics, levels, scene, controls, layout
 flutter build apk      # or: flutter build ipa
 ```
 
@@ -92,7 +92,7 @@ Forward speed is constant, so level time is just `x / runSpeed`. Hopper phases
 are computed from that rather than from a wall clock, which is what makes a
 checkpoint respawn put every hopper back exactly where it was the first time.
 
-## The four obstacles
+## The five obstacles
 
 | | Belongs to | Moves | How you beat it |
 | --- | --- | --- | --- |
@@ -100,11 +100,19 @@ checkpoint respawn put every hopper back exactly where it was the first time.
 | **Hopper** (yellow) | one surface | bounces off it on a rhythm | run under it mid hop, or jump it while it rests |
 | **Blade** (steel) | neither | sweeps the whole band, ceiling to floor and back | be on the surface it is furthest from |
 | **Stone** (sandstone) | one surface | drops across the band, then is winched back | wait out the slam, or be past before it lets go |
+| **Fire** (vent) | one surface | dark, glows, erupts, dies | be on the other surface *while it burns* |
 
 A blade is only 26 units wide, so it threatens for about a tenth of a second —
 the skill is reading which side is open on approach, not reacting. A stone at
 full extension closes the whole column for about half a second, so it is a hard
 gate rather than a choice.
+
+A fire reaches 70 units, above the 60 unit jump peak, so it cannot be hopped —
+and far enough short of the 120 unit band that the opposite surface really is
+clear. That is the point of it: a bolted enemy is a flip you must *make*, a
+fire is a flip you must *time*. The 0.45 second warning glow before it lights
+is what keeps that fair, and the flame itself is the hit box, so a cold vent
+is harmless.
 
 ## The cast
 
@@ -162,6 +170,7 @@ Levels are pure data in `assets/levels/levels.json`. No level logic in code.
   "hoppers": [ { "x": 880, "surface": "floor", "phase": 0.6 } ],
   "blades":  [ { "x": 1900, "period": 2.2, "phase": 0.3 } ],
   "stones":  [ { "x": 2400, "surface": "ceiling", "period": 2.4, "phase": 1.1 } ],
+  "fires":   [ { "x": 2900, "surface": "floor", "period": 2.6, "phase": 0.4 } ],
   "checkpoints": [2000, 4000]
 }
 ```
@@ -171,16 +180,16 @@ which is always `runSpeed * 30`. Hoppers take their period from the level's
 `hopPeriod`; blades and stones carry their own, so one level can mix fast and
 slow ones.
 
-All four types appear from level 1 and every count only grows, so the pack
-never gets easier. Level 1 is two of each at 700 unit spacing, in the order
-bolted, hopper, blade, stone, then round again — 700 is wider than the 470 the
-camera shows ahead, so every type is still met completely alone. Level 20 has
-eighteen obstacles at about 300 units apart.
+All five types appear from level 1 and every count only grows, so the pack
+never gets easier. Level 1 is two of each at 545 unit spacing, in the order
+bolted, hopper, blade, stone, fire, then round again — 545 is wider than the
+470 the camera shows ahead, so every type is still met completely alone. Level
+20 has twenty three obstacles at about 250 units apart.
 
 No level is allowed dead track: at most 700 units between obstacles, 900 before
 the first and 800 after the last. At base speed 700 units is 3.5 seconds of
 holding still, which is the edge of what a runner can carry, and that rule is
-what sets the floor of eight obstacles a level.
+what sets the floor of ten obstacles a level.
 
 ```bash
 dart run tool/validate_levels.dart            # check every level

@@ -1,8 +1,12 @@
+import 'dart:ui';
+
+import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/game/components/blade_obstacle.dart';
 import 'package:pitchpole/game/components/bolted_enemy.dart';
 import 'package:pitchpole/game/components/door.dart';
+import 'package:pitchpole/game/components/fire_obstacle.dart';
 import 'package:pitchpole/game/components/hopper_enemy.dart';
 import 'package:pitchpole/game/components/player.dart';
 import 'package:pitchpole/game/components/stone_obstacle.dart';
@@ -21,6 +25,7 @@ const LevelModel _level = LevelModel(
   hoppers: [Hopper(x: 5200, surface: Surface.floor, phase: 0.4)],
   blades: [Blade(x: 5500, period: 2.0)],
   stones: [Stone(x: 5800, surface: Surface.ceiling, period: 2.4)],
+  fires: [Fire(x: 5650, surface: Surface.floor, period: 2.6)],
   checkpoints: [2000, 4000],
 );
 
@@ -70,6 +75,7 @@ void main() {
     expect(game.world.children.whereType<HopperEnemy>().length, 1);
     expect(game.world.children.whereType<BladeObstacle>().length, 1);
     expect(game.world.children.whereType<StoneObstacle>().length, 1);
+    expect(game.world.children.whereType<FireObstacle>().length, 1);
     expect(game.world.children.whereType<DoorComponent>().length, 1);
   });
 
@@ -90,6 +96,93 @@ void main() {
         reason: 'the blade should be sweeping');
     expect(stoneYs.toSet().length, greaterThan(1),
         reason: 'the stone should be slamming');
+  });
+
+  /// Renders [component] on its own and counts the pixels it actually put
+  /// down. Proves the drawing happens, not just that the numbers are right.
+  ///
+  /// Rasterising has to happen outside the test's fake async, or `toImage`
+  /// never completes.
+  Future<int> paintedPixels(
+    WidgetTester tester,
+    PositionComponent component,
+  ) async {
+    var painted = 0;
+    await tester.runAsync(() async {
+      final recorder = PictureRecorder();
+      component.render(Canvas(recorder));
+      final picture = recorder.endRecording();
+
+      final image = await picture.toImage(
+        component.size.x.ceil(),
+        component.size.y.ceil(),
+      );
+      final data = await image.toByteData();
+      picture.dispose();
+      image.dispose();
+      if (data == null) return;
+
+      for (var i = 3; i < data.lengthInBytes; i += 4) {
+        if (data.getUint8(i) > 8) painted++;
+      }
+    });
+    return painted;
+  }
+
+  testWidgets('a lit vent paints far more than a dark one', (tester) async {
+    const vent = Fire(x: 100, surface: Surface.floor, period: 2.6);
+
+    // Cycle 0: dark, so only the grate shows.
+    final component = FireObstacle(vent)..syncTo(0);
+    final dark = await paintedPixels(tester, component);
+
+    // Straight to full height.
+    component.syncTo(kFireWarnTime + kFireRiseTime);
+    final lit = await paintedPixels(tester, component);
+
+    expect(dark, greaterThan(0), reason: 'the grate has to be visible');
+    expect(lit, greaterThan(dark * 3),
+        reason: 'a flame at full reach should dwarf the grate');
+  });
+
+  testWidgets('a ceiling vent paints just as much as a floor one',
+      (tester) async {
+    const floor = Fire(x: 100, surface: Surface.floor, period: 2.6);
+    const ceiling = Fire(x: 100, surface: Surface.ceiling, period: 2.6);
+    const alight = kFireWarnTime + kFireRiseTime;
+
+    final down = await paintedPixels(
+      tester,
+      FireObstacle(floor)..syncTo(alight),
+    );
+    final up = await paintedPixels(
+      tester,
+      FireObstacle(ceiling)..syncTo(alight),
+    );
+
+    expect(up, greaterThan(0));
+    // Same flame, mirrored. Anything else means one direction is broken.
+    expect((up - down).abs(), lessThan(down * 0.2));
+  });
+
+  testWidgets('a fire lights and goes out on its own', (tester) async {
+    final game = await mount(tester);
+    final fire = game.world.children.whereType<FireObstacle>().first;
+    final level = game.level;
+    final vent = level.fires.first;
+
+    // Sampled from the level time the game feeds it, so the flame is where
+    // the validator says it is rather than wherever a wall clock landed.
+    final heights = <double>[];
+    for (var i = 0; i < 14; i++) {
+      final levelTime = i * 0.2;
+      heights.add(vent.heightAt(levelTime));
+    }
+
+    expect(heights.any((h) => h == 0), isTrue, reason: 'it should go dark');
+    expect(heights.any((h) => h > kFireReach * 0.9), isTrue,
+        reason: 'and reach full height');
+    expect(fire.onCeiling, isFalse);
   });
 
   testWidgets('the character runs forward with no input at all',

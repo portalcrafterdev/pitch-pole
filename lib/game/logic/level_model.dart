@@ -137,6 +137,53 @@ class Stone {
       };
 }
 
+/// A vent flush with one surface that erupts on a rhythm. It reaches higher
+/// than a jump, so it has to be flipped away from, but only while it is lit.
+class Fire {
+  const Fire({
+    required this.x,
+    required this.surface,
+    this.period = kFirePeriod,
+    this.phase = 0,
+  });
+
+  /// Centre of the vent, in world units.
+  final double x;
+
+  /// The surface it is set into.
+  final Surface surface;
+
+  final double period;
+  final double phase;
+
+  /// How far the flame reaches right now. Zero while the vent is dark.
+  double heightAt(double levelTime) => fireHeightAt(levelTime + phase, period);
+
+  /// How far through the warning glow it is. Cosmetic only.
+  double warningAt(double levelTime) =>
+      fireWarningAt(levelTime + phase, period);
+
+  Box boxAt(double levelTime) => fireBox(
+        x,
+        onCeiling: surface.isCeiling,
+        height: heightAt(levelTime),
+      );
+
+  factory Fire.fromJson(Map<String, dynamic> json) => Fire(
+        x: (json['x'] as num).toDouble(),
+        surface: Surface.fromJson(json['surface']),
+        period: (json['period'] as num?)?.toDouble() ?? kFirePeriod,
+        phase: (json['phase'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'x': x,
+        'surface': surface.json,
+        'period': period,
+        'phase': phase,
+      };
+}
+
 class LevelModel {
   const LevelModel({
     required this.id,
@@ -147,6 +194,7 @@ class LevelModel {
     this.hoppers = const [],
     this.blades = const [],
     this.stones = const [],
+    this.fires = const [],
     this.checkpoints = const [],
   });
 
@@ -162,6 +210,7 @@ class LevelModel {
   final List<Hopper> hoppers;
   final List<Blade> blades;
   final List<Stone> stones;
+  final List<Fire> fires;
 
   /// World positions the character respawns at, in ascending order.
   final List<double> checkpoints;
@@ -199,6 +248,10 @@ class LevelModel {
           for (final e in (json['stones'] as List<dynamic>? ?? const []))
             Stone.fromJson(e as Map<String, dynamic>),
         ],
+        fires: [
+          for (final e in (json['fires'] as List<dynamic>? ?? const []))
+            Fire.fromJson(e as Map<String, dynamic>),
+        ],
         checkpoints: [
           for (final e in (json['checkpoints'] as List<dynamic>? ?? const []))
             (e as num).toDouble(),
@@ -214,12 +267,17 @@ class LevelModel {
         'hoppers': [for (final e in hoppers) e.toJson()],
         'blades': [for (final e in blades) e.toJson()],
         'stones': [for (final e in stones) e.toJson()],
+        'fires': [for (final e in fires) e.toJson()],
         'checkpoints': checkpoints,
       };
 
   /// Everything in the way, of any kind.
   int get obstacleCount =>
-      bolted.length + hoppers.length + blades.length + stones.length;
+      bolted.length +
+      hoppers.length +
+      blades.length +
+      stones.length +
+      fires.length;
 
   /// Where everything sits, of any kind, in ascending order. Used to check
   /// that the level never leaves the player with nothing to do.
@@ -228,11 +286,12 @@ class LevelModel {
         ...hoppers.map((e) => e.x),
         ...blades.map((e) => e.x),
         ...stones.map((e) => e.x),
+        ...fires.map((e) => e.x),
       ]..sort();
 
   @override
   String toString() => 'Level $id (${length.round()} units at '
       '${runSpeed.round()}/s, ${bolted.length} bolted, '
       '${hoppers.length} hoppers, ${blades.length} blades, '
-      '${stones.length} stones)';
+      '${stones.length} stones, ${fires.length} fires)';
 }

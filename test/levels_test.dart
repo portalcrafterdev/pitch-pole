@@ -81,12 +81,13 @@ void main() {
     }
   });
 
-  test('every level has all four kinds of obstacle', () {
+  test('every level has all five kinds of obstacle', () {
     for (final level in levels) {
       expect(level.bolted, isNotEmpty, reason: 'level ${level.id}: no bolted');
       expect(level.hoppers, isNotEmpty, reason: 'level ${level.id}: no hoppers');
       expect(level.blades, isNotEmpty, reason: 'level ${level.id}: no blades');
       expect(level.stones, isNotEmpty, reason: 'level ${level.id}: no stones');
+      expect(level.fires, isNotEmpty, reason: 'level ${level.id}: no fires');
     }
   });
 
@@ -96,6 +97,7 @@ void main() {
       'hoppers': (l) => l.hoppers.length,
       'blades': (l) => l.blades.length,
       'stones': (l) => l.stones.length,
+      'fires': (l) => l.fires.length,
       'total': (l) => l.obstacleCount,
     };
 
@@ -120,6 +122,7 @@ void main() {
       first.hoppers,
       first.blades,
       first.stones,
+      first.fires,
     ]) {
       expect(kind.length, 2, reason: 'level 1 shows each type twice, no more');
     }
@@ -129,9 +132,10 @@ void main() {
       first.hoppers.first.x,
       first.blades.first.x,
       first.stones.first.x,
+      first.fires.first.x,
     ];
 
-    expect(introductions, orderedEquals(first.obstacleXs.take(4)),
+    expect(introductions, orderedEquals(first.obstacleXs.take(5)),
         reason: 'each type is met for the first time before anything repeats');
 
     // The camera shows this far ahead of the character, so a wider gap than
@@ -163,6 +167,36 @@ void main() {
             reason: 'level ${level.id} has a stone that slams before it is '
                 'back up');
       }
+      for (final fire in level.fires) {
+        expect(fire.period, greaterThan(kFireCycleTime + kMinFireDarkTime),
+            reason: 'level ${level.id} has a fire that is lit so often it is '
+                'really a bolted enemy');
+        expect(fire.x, greaterThan(kFireClearance));
+        expect(fire.x, lessThan(level.length - kFireClearance));
+      }
+    }
+  });
+
+  test('a fire is taller than a jump and shorter than the band', () {
+    // Both halves matter. Higher than the jump peak means the only answer is
+    // the other surface; well under the band means the other surface is
+    // actually clear.
+    expect(kFireReach, greaterThan(kJumpPeak));
+    expect(kFireReach + kPlayerSize, lessThan(kBandHeight));
+  });
+
+  test('no two fires close together face each other', () {
+    for (final level in levels) {
+      for (var i = 0; i < level.fires.length; i++) {
+        for (var j = i + 1; j < level.fires.length; j++) {
+          final a = level.fires[i];
+          final b = level.fires[j];
+          if (a.surface == b.surface) continue;
+          expect((a.x - b.x).abs(), greaterThanOrEqualTo(kOppositeFireGap),
+              reason: 'level ${level.id} could light both surfaces at once '
+                  'around ${a.x}');
+        }
+      }
     }
   });
 
@@ -173,6 +207,7 @@ void main() {
         ...level.hoppers.map((e) => e.x),
         ...level.blades.map((e) => e.x),
         ...level.stones.map((e) => e.x),
+        ...level.fires.map((e) => e.x),
       ]..sort();
 
       for (var i = 1; i < positions.length; i++) {
