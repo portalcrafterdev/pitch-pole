@@ -377,30 +377,32 @@ LevelModel generateLevel(int id) {
   );
 }
 
-/// How far apart coins are laid along the run.
-const double kCoinSpacing = 260;
+/// How far apart coins are laid along one surface. Both surfaces get a row,
+/// so a level carries roughly twice this many.
+const double kCoinSpacing = 340;
 
 /// Coins are kept this far from any obstacle, so a row of them never reads as
 /// pointing into something that kills.
 const double kCoinObstacleGap = 55;
 
-/// Lays coins along the line [plan] actually runs.
+/// Lays a row of coins along each surface.
 ///
-/// The solver has already proved this route works, so every coin is on a path
-/// the level can genuinely be played along — no coin is ever stranded inside a
-/// blade's sweep or behind a bolted enemy. It also means a row of coins reads
-/// as a hint: follow them and you are on a line that finishes the level.
+/// The two rows are offset by half a spacing, so the floor row and the ceiling
+/// row never line up. Sweeping a level clean means flipping for them, which is
+/// what turns the flip button into something you use for reward rather than
+/// only to survive.
 ///
-/// Coins are a bonus rather than a demand, so a player taking a different
-/// valid route simply misses some.
-List<Coin> coinsAlong(LevelModel level, RunPlan plan) {
+/// Every coin is checked before it is placed: a character resting on that
+/// surface, at the moment it would arrive, must not be hit by anything. That
+/// check is exact rather than approximate, because forward speed never changes
+/// and so arrival time is always `x / runSpeed`. It means no coin is ever
+/// stranded inside a blade's sweep, under a hanging spider, or in a flame.
+///
+/// Coins are a bonus, never a demand. Nothing here makes a level harder.
+List<Coin> coinsFor(LevelModel level) {
   final index = LevelIndex(level);
   final obstacles = level.obstacleXs;
-  final state = RunState();
   final coins = <Coin>[];
-
-  var next = kCoinSpacing;
-  final last = level.length - kCoinSpacing;
 
   bool clearOfObstacles(double x) {
     for (final at in obstacles) {
@@ -409,31 +411,40 @@ List<Coin> coinsAlong(LevelModel level, RunPlan plan) {
     return true;
   }
 
-  for (final input in plan.inputs) {
-    applyInput(state, input);
-    for (var s = 0; s < plan.stepsPerDecision && state.isRunning; s++) {
-      advance(index, state);
-      if (state.x < next || state.x > last) continue;
+  /// Would a character standing here, right now, still be alive?
+  bool restingIsSafe(double centreX, {required bool gravityUp}) => !index.hits(
+        RunState(
+          x: centreX - kPlayerSize / 2,
+          y: restingY(gravityUp: gravityUp),
+          gravityUp: gravityUp,
+        ),
+      );
 
-      final x = state.x + kPlayerSize / 2;
-      if (!clearOfObstacles(x)) {
-        // Try again just past the obstacle rather than losing the whole slot.
-        // Without this a crowded level ends up with fewer coins than an empty
-        // one, which is backwards.
-        next = state.x + 25;
-        continue;
+  void layRow({required bool gravityUp, required double from}) {
+    final y = restingY(gravityUp: gravityUp) + kPlayerSize / 2;
+    final last = level.length - kCoinSpacing / 2;
+
+    for (var slot = from; slot < last; slot += kCoinSpacing) {
+      // If the ideal spot is blocked, shuffle along a little rather than
+      // losing the slot: a crowded level should not end up with fewer coins
+      // than an empty one.
+      for (var nudge = 0.0; nudge <= 120; nudge += 30) {
+        final x = slot + nudge;
+        if (x >= last) break;
+        if (!clearOfObstacles(x)) continue;
+        if (!restingIsSafe(x, gravityUp: gravityUp)) continue;
+        coins.add(Coin(x: _round(x), y: _round(y)));
+        break;
       }
-
-      coins.add(Coin(
-        x: _round(x),
-        // Centre of the character, so a coin sits exactly where it ran.
-        y: _round(state.y + kPlayerSize / 2),
-      ));
-      next = state.x + kCoinSpacing;
     }
-    if (!state.isRunning) break;
   }
 
+  layRow(gravityUp: false, from: kCoinSpacing);
+  layRow(gravityUp: true, from: kCoinSpacing * 1.5);
+
+  // The collection loop stops at the first coin out of reach, so the two rows
+  // have to be merged into one ordered list.
+  coins.sort((a, b) => a.x.compareTo(b.x));
   return coins;
 }
 

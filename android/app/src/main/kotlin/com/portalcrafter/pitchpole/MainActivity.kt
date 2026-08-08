@@ -1,4 +1,4 @@
-package com.example.pitchpole
+package com.portalcrafter.pitchpole
 
 import io.flutter.embedding.android.FlutterActivity
 

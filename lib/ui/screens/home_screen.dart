@@ -5,6 +5,7 @@ import '../../data/progress_store.dart';
 import '../../game/logic/level_model.dart';
 import '../overlays/overlay_panel.dart';
 import '../palette.dart';
+import '../widgets/sign_in_button.dart';
 import 'game_screen.dart';
 import 'level_select_screen.dart';
 
@@ -105,6 +106,11 @@ class HomeScreen extends StatelessWidget {
                                             ),
                                           ),
                                         ),
+                                        // Below the two that matter, and
+                                        // quieter than both: the whole game
+                                        // plays the same signed out.
+                                        SizedBox(height: compact ? 2 : 6),
+                                        SignInButton(compact: compact),
                                       ],
                                     ),
                                   ),

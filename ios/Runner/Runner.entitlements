@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Game Center. Unlike the Android side this file is not wired up
+	  automatically: Xcode has to be told about it once, on a Mac, by opening
+	  ios/Runner.xcworkspace and either
+	    - Runner target -> Signing & Capabilities -> + Capability -> Game Center
+	      (which points CODE_SIGN_ENTITLEMENTS at this file itself), or
+	    - Build Settings -> Code Signing Entitlements -> Runner/Runner.entitlements
+	      for both Debug and Release.
+	  The App ID in the Apple Developer portal also needs Game Center enabled.
+	  Until that is done the button on the home screen still appears; tapping
+	  it reports that Game Center is not set up rather than pretending to work.
+	-->
+	<key>com.apple.developer.game-center</key>
+	<true/>
+</dict>
+</plist>

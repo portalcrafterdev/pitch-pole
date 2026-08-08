@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.pitchpole"
+    namespace = "com.portalcrafter.pitchpole"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,8 +15,10 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.pitchpole"
+        // Permanent. Google Play ties a listing to this string for the life of
+        // the app and will not let it be changed afterwards, so it is also
+        // what every Play Games Services credential is issued against.
+        applicationId = "com.portalcrafter.pitchpole"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

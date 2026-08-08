@@ -44,7 +44,7 @@ _Checked _check(int id) {
   final result = validateLevel(level);
   if (!result.ok) return _Checked(id, result.problems, 0, 0, null);
 
-  final withCoins = level.withCoins(coinsAlong(level, result.plan!));
+  final withCoins = level.withCoins(coinsFor(level));
   return _Checked(
     id,
     const [],
@@ -80,7 +80,35 @@ Future<List<T>> _pool<T>(
   return results.cast<T>();
 }
 
+/// Recomputes coins for the pack already on disk, leaving every level's
+/// obstacles exactly as they are.
+///
+/// Coins are worked out without the solver, and they cannot change whether a
+/// level is completable, so relaying them does not need the whole pack to be
+/// validated again. That turns a half hour job into a couple of seconds.
+Future<void> _relayCoins() async {
+  final file = File(_assetPath);
+  final pack = (jsonDecode(await file.readAsString()) as List<dynamic>)
+      .map((e) => LevelModel.fromJson(e as Map<String, dynamic>))
+      .map((level) => level.withCoins(coinsFor(level)))
+      .toList();
+
+  await file.writeAsString(
+    '${const JsonEncoder().convert([for (final l in pack) l.toJson()])}\n',
+  );
+
+  final coins = pack.fold(0, (sum, l) => sum + l.coins.length);
+  final size = await file.length();
+  stdout.writeln('relaid coins on ${pack.length} levels: $coins coins '
+      '(${(size / 1024 / 1024).toStringAsFixed(2)} MB)');
+  for (final level in pack.take(3)) {
+    stdout.writeln('  level ${level.id}: ${level.coins.length} coins');
+  }
+}
+
 Future<void> main(List<String> args) async {
+  if (args.contains('--coins-only')) return _relayCoins();
+
   final sampleIndex = args.indexOf('--sample');
   final sample = sampleIndex >= 0 && sampleIndex + 1 < args.length
       ? int.parse(args[sampleIndex + 1])
@@ -173,16 +201,15 @@ Future<void> _write(List<_Checked> checked) async {
 
   stdout.writeln('keeping ${existing.length} hand placed levels');
 
-  // The taught levels get coins the same way the generated ones do: solve
-  // them, then lay coins along the route. Only a handful, so it is quick.
+  // The taught levels get coins the same way the generated ones do, and are
+  // solved as well so a hand placed level can never quietly stop working.
   final taught = <Map<String, dynamic>>[];
   for (final level in existing) {
-    final plan = solveLevel(level);
-    if (plan == null) {
+    if (solveLevel(level) == null) {
       stdout.writeln('level ${level.id} could not be solved, nothing written');
       exit(1);
     }
-    final withCoins = level.withCoins(coinsAlong(level, plan));
+    final withCoins = level.withCoins(coinsFor(level));
     stdout.writeln('  level ${level.id}: ${withCoins.coins.length} coins');
     taught.add(withCoins.toJson());
   }

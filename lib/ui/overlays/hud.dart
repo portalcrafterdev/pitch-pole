@@ -17,14 +17,20 @@ class Hud extends StatelessWidget {
       valueListenable: game.stateNotifier,
       builder: (context, state, _) => Column(
         children: [
-          // A soft veil under the top row. The world behind it is a bright
-          // sky now, and the clock and the level number are light text.
+          // A veil under the top row. The world behind it is a bright sky, and
+          // everything in the row is light text, so without this the muted
+          // items in particular wash out completely.
           DecoratedBox(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0x8C0A1410), Color(0x000A1410)],
+                colors: [
+                  Color(0xD90A1410),
+                  Color(0xA30A1410),
+                  Color(0x000A1410),
+                ],
+                stops: [0, 0.55, 1],
               ),
             ),
             child: SafeArea(
@@ -45,8 +51,10 @@ class Hud extends StatelessWidget {
                     const SizedBox(width: 14),
                     Text(
                       'LEVEL ${game.level.id}',
-                      style: const TextStyle(
-                        color: Palette.textMuted,
+                      style: TextStyle(
+                        // Not the muted colour the menus use: that was chosen
+                        // against a near black panel and disappears over sky.
+                        color: Palette.text.withValues(alpha: 0.82),
                         fontSize: 12,
                         letterSpacing: 2,
                         fontWeight: FontWeight.w700,
@@ -65,7 +73,7 @@ class Hud extends StatelessWidget {
                     IconButton(
                       onPressed: onPause,
                       icon: const Icon(Icons.pause_rounded),
-                      color: Palette.textMuted,
+                      color: Palette.text.withValues(alpha: 0.82),
                       tooltip: 'Pause',
                     ),
                   ],

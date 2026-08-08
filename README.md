@@ -74,10 +74,11 @@ lib/
   ui/
     screens/                 home, level select, game
     overlays/                hud, level complete, level failed, pause
-    widgets/                 touch controls, star row
+    widgets/                 touch controls, star row, sign in button
   data/
     level_repository.dart    loads assets/levels/levels.json
     progress_store.dart      stars, best times and settings
+    games_auth.dart          Play Games / Game Center sign in, optional
 ```
 
 ### Fixed timestep

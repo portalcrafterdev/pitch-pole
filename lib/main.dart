@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'data/games_auth.dart';
 import 'data/progress_store.dart';
 import 'game/sound.dart';
 import 'ui/palette.dart';
@@ -25,6 +26,13 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   await progressStore.load();
+
+  // Not awaited. Reconnecting to Play Games or Game Center means a round trip
+  // to the platform, and reaching the menu must never wait on a network. The
+  // button updates itself when the answer arrives. It also only reaches the
+  // platform at all if the player has signed in before, so a fresh install
+  // gets no account prompt it did not ask for.
+  unawaited(gamesAuth.load());
 
   // Build the sound pools while the menu is up, so the first jump of the
   // first level lands as quickly as the thousandth. Not awaited: a device

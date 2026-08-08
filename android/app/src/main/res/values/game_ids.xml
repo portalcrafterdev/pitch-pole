@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Google Play Games project number for this game.
+
+  This is NOT optional once the Play Games SDK is on the classpath: the SDK
+  initialises itself from a ContentProvider at app start and reads this value
+  out of the manifest, so a build with the value missing crashes on launch
+  rather than merely failing to sign in.
+
+  The value below is a placeholder, so the game launches and everything except
+  sign in works. To make sign in actually work:
+
+    1. Play Console -> your app -> Grow -> Play Games Services -> Setup.
+    2. Create a Play Games Services project. It gives you a project number,
+       a long number that looks like 123456789012.
+    3. Add a credential of type "Android", using the applicationId
+       com.portalcrafter.pitchpole and the SHA-1 of the keystore the build is
+       signed with. The debug keystore and the release keystore are different,
+       so both need a credential or sign in will only work on one of them.
+       The debug keystore's SHA-1 is
+       E7:D0:A5:6A:71:AC:89:FF:B8:D6:74:54:D2:2A:7A:BE:56:92:EA:A8
+       on the machine this was set up on; every machine has its own, so a
+       second developer needs their own credential too.
+    3b. Add your own Google account to the Testers list on the Play Games
+       Services project. Until the project is published, sign in fails for
+       anybody not on that list even when everything above is correct.
+    4. Put the project number here, replacing the placeholder.
+
+  Until step 4 is done the button on the home screen still appears; tapping it
+  reports that Play Games is not set up rather than pretending to work.
+-->
+<resources>
+    <string name="games_app_id" translatable="false">000000000000</string>
+</resources>

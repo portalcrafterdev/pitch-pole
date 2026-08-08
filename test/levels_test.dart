@@ -319,20 +319,51 @@ void main() {
     }
   });
 
-  test('the committed coins match the route the solver finds', () {
-    // The expensive half of the check above: solve the level again and lay
-    // coins the same way the authoring tool did. Two levels only, because
-    // each one costs a full solve.
-    for (final id in [kFirstGeneratedLevel, 742]) {
+  test('the committed coins match what the generator lays', () {
+    for (final id in [1, kFirstGeneratedLevel, 742, kTotalLevels]) {
       final level = levels[id - 1];
-      final plan = solveLevel(level.withCoins(const []));
-      expect(plan, isNotNull, reason: 'level $id should still be solvable');
-
       expect(
-        jsonEncode(coinsAlong(level, plan!).map((c) => c.toJson()).toList()),
+        jsonEncode(coinsFor(level).map((c) => c.toJson()).toList()),
         jsonEncode(level.coins.map((c) => c.toJson()).toList()),
         reason: 'level $id coins have drifted from the generator',
       );
+    }
+  });
+
+  test('coins are laid on both surfaces', () {
+    // The whole point of two rows: sweeping a level clean means flipping for
+    // the far side, so the flip is used for reward and not only to survive.
+    const floorY = kFloorSurfaceY - kPlayerSize / 2;
+    const ceilingY = kCeilingSurfaceY + kPlayerSize / 2;
+
+    for (final level in levels) {
+      final onFloor = level.coins.where((c) => c.y == floorY).length;
+      final onCeiling = level.coins.where((c) => c.y == ceilingY).length;
+
+      expect(onFloor, greaterThan(0), reason: 'level ${level.id}');
+      expect(onCeiling, greaterThan(0), reason: 'level ${level.id}');
+      expect(onFloor + onCeiling, level.coins.length,
+          reason: 'level ${level.id} has a coin off both surfaces');
+    }
+  });
+
+  test('a character resting on a coin is never being killed', () {
+    // Every coin is placed where a character standing on that surface, at the
+    // moment it arrives, is alive. A coin inside a blade sweep or a flame
+    // would be uncollectable and would read as a trap.
+    for (final level in levels.take(120)) {
+      final index = LevelIndex(level);
+      for (final coin in level.coins) {
+        final gravityUp = coin.y < kCanvasHeight / 2;
+        final state = RunState(
+          x: coin.x - kPlayerSize / 2,
+          y: restingY(gravityUp: gravityUp),
+          gravityUp: gravityUp,
+        );
+        expect(index.hits(state), isFalse,
+            reason: 'level ${level.id}: the coin at ${coin.x} sits somewhere '
+                'that kills');
+      }
     }
   });
 
