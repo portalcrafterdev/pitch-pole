@@ -7,11 +7,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../ui/palette.dart';
+import 'components/bat_enemy.dart';
 import 'components/blade_obstacle.dart';
 import 'components/bolted_enemy.dart';
+import 'components/coin_pickup.dart';
 import 'components/door.dart';
 import 'components/fire_obstacle.dart';
 import 'components/hopper_enemy.dart';
+import 'components/spider_enemy.dart';
 import 'components/stone_obstacle.dart';
 import 'components/parallax_backdrop.dart';
 import 'components/player.dart';
@@ -70,6 +73,9 @@ class PitchpoleGame extends FlameGame {
   final List<BladeObstacle> _blades = [];
   final List<StoneObstacle> _stones = [];
   final List<FireObstacle> _fires = [];
+  final List<BatEnemy> _bats = [];
+  final List<SpiderEnemy> _spiders = [];
+  final List<CoinPickup> _coins = [];
 
   final Random _random = Random();
   final List<RunInput> _queued = [];
@@ -88,8 +94,11 @@ class PitchpoleGame extends FlameGame {
   /// Ending a run should be a moment, not a cut.
   static const double kWinPause = DoorComponent.burstDuration;
 
+  /// The letterbox bars, which sit above and below the 560 by 220 canvas on
+  /// most phones. Sky, so they read as more of the same world rather than as
+  /// black bars.
   @override
-  Color backgroundColor() => Palette.background;
+  Color backgroundColor() => Palette.skyHigh;
 
   @override
   Future<void> onLoad() async {
@@ -122,6 +131,24 @@ class PitchpoleGame extends FlameGame {
     for (final fire in level.fires) {
       final component = FireObstacle(fire);
       _fires.add(component);
+      world.add(component);
+    }
+
+    for (final bat in level.bats) {
+      final component = BatEnemy(bat);
+      _bats.add(component);
+      world.add(component);
+    }
+
+    for (final spider in level.spiders) {
+      final component = SpiderEnemy(spider);
+      _spiders.add(component);
+      world.add(component);
+    }
+
+    for (final coin in level.coins) {
+      final component = CoinPickup(coin);
+      _coins.add(component);
       world.add(component);
     }
 
@@ -174,6 +201,7 @@ class PitchpoleGame extends FlameGame {
         _drainInput();
         final wasAirborne = !sim.state.grounded;
         sim.step();
+        if (sim.justCollected.isNotEmpty) _onCoinsCollected();
         if (wasAirborne && sim.state.grounded && sim.state.isRunning) {
           _player.onLand();
           _sound.play(Sfx.land, volume: 0.7);
@@ -202,6 +230,15 @@ class PitchpoleGame extends FlameGame {
       }
     }
     _queued.clear();
+  }
+
+  /// Pops the coins the simulator just picked up. One click however many
+  /// landed on the same step, so a cluster does not stack into a clatter.
+  void _onCoinsCollected() {
+    for (final i in sim.justCollected) {
+      _coins[i].collect();
+    }
+    _sound.play(Sfx.jump, volume: 0.35);
   }
 
   void _onRunEnded() {
@@ -234,6 +271,7 @@ class PitchpoleGame extends FlameGame {
   void _respawn() {
     final wasLastLife = sim.outOfLives;
     sim.respawn();
+    _syncCoins();
     _player.reset();
     _accumulator = 0;
     _queued.clear();
@@ -248,6 +286,7 @@ class PitchpoleGame extends FlameGame {
   /// fresh clock.
   void restart() {
     sim.restart();
+    _syncCoins();
     _player.reset();
     _door.reset();
     _accumulator = 0;
@@ -257,6 +296,18 @@ class PitchpoleGame extends FlameGame {
     _inputLocked = false;
     camera.viewfinder.position = _cameraTarget();
     _syncScene();
+  }
+
+  /// Brings the coins back in line with the simulator after a respawn or a
+  /// restart. The simulator is the authority on which ones are gone.
+  void _syncCoins() {
+    for (var i = 0; i < _coins.length; i++) {
+      if (sim.isCollected(i)) {
+        _coins[i].collect();
+      } else {
+        _coins[i].reset();
+      }
+    }
   }
 
   void _syncScene() {
@@ -276,6 +327,15 @@ class PitchpoleGame extends FlameGame {
     }
     for (final fire in _fires) {
       fire.syncTo(levelTime);
+    }
+    for (final bat in _bats) {
+      bat.syncTo(levelTime);
+    }
+    for (final spider in _spiders) {
+      spider.syncTo(levelTime);
+    }
+    for (final coin in _coins) {
+      coin.syncTo(levelTime);
     }
 
     if (_shake == 0) camera.viewfinder.position = _cameraTarget();

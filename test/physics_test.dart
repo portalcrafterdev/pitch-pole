@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/game/logic/level_model.dart';
@@ -15,6 +16,9 @@ LevelModel level({
   List<Blade> blades = const [],
   List<Stone> stones = const [],
   List<Fire> fires = const [],
+  List<Bat> bats = const [],
+  List<Spider> spiders = const [],
+  List<Coin> coins = const [],
   List<double> checkpoints = const [2000, 4000],
 }) =>
     LevelModel(
@@ -27,6 +31,9 @@ LevelModel level({
       blades: blades,
       stones: stones,
       fires: fires,
+      bats: bats,
+      spiders: spiders,
+      coins: coins,
       checkpoints: checkpoints,
     );
 
@@ -488,6 +495,246 @@ void main() {
     });
   });
 
+  group('bats', () {
+    /// The widest the bat's hit box ever gets over a full drift.
+    ({double top, double bottom}) batSpan() {
+      var top = double.infinity;
+      var bottom = double.negativeInfinity;
+      for (var t = 0.0; t < kBatPeriod; t += 0.005) {
+        final box = batBox(0, batCentreAt(t, kBatPeriod)).deflate(kHitboxShrink);
+        top = min(top, box.top);
+        bottom = max(bottom, box.bottom);
+      }
+      return (top: top, bottom: bottom);
+    }
+
+    test('a resting character is safe on either surface', () {
+      final span = batSpan();
+      final onFloor =
+          playerBox(0, restingY(gravityUp: false)).deflate(kHitboxShrink);
+      final onCeiling =
+          playerBox(0, restingY(gravityUp: true)).deflate(kHitboxShrink);
+
+      expect(span.bottom, lessThan(onFloor.top),
+          reason: 'a bat must never reach a character standing on the floor');
+      expect(span.top, greaterThan(onCeiling.bottom),
+          reason: 'nor one on the ceiling');
+    });
+
+    test('a jump from either surface is caught', () {
+      final bat = batBox(0, kBatCentreY).deflate(kHitboxShrink);
+
+      for (final up in [false, true]) {
+        final from = restingY(gravityUp: up);
+        final peak = playerBox(0, up ? from + kJumpPeak : from - kJumpPeak)
+            .deflate(kHitboxShrink);
+        expect(peak.overlaps(bat), isTrue,
+            reason: 'a bat is the one obstacle that punishes jumping, '
+                'from the ${up ? "ceiling" : "floor"}');
+      }
+    });
+
+    test('a flip across the band is caught too', () {
+      // This is what makes a bat a commitment rather than a dodge: it closes
+      // the air, and a flip is time spent in the air.
+      final bat = batBox(0, kBatCentreY).deflate(kHitboxShrink);
+      final crossing =
+          playerBox(0, kBatCentreY - kPlayerSize / 2).deflate(kHitboxShrink);
+      expect(crossing.overlaps(bat), isTrue);
+    });
+
+    test('running under one on the floor is free', () {
+      final model = level(bats: const [Bat(x: 400)]);
+      expect(
+        LevelIndex(model).hits(RunState(x: 400 - kPlayerSize / 2)),
+        isFalse,
+        reason: 'the whole answer to a bat is to stay where you are',
+      );
+    });
+
+    test('jumping into one kills', () {
+      final model = level(bats: const [Bat(x: 400)]);
+      final state = RunState(
+        x: 400 - kPlayerSize / 2,
+        y: restingY(gravityUp: false) - kJumpPeak,
+      );
+      expect(LevelIndex(model).hits(state), isTrue);
+    });
+  });
+
+  group('spiders', () {
+    test('it drops out of the canopy and climbs back', () {
+      expect(spiderDropAt(0, kSpiderPeriod), kSpiderRest,
+          reason: 'tucked up, and a tucked spider is clear of the band');
+      expect(
+        spiderDropAt(kSpiderDropTime, kSpiderPeriod),
+        closeTo(kSpiderReach, 0.001),
+      );
+      expect(
+        spiderDropAt(kSpiderCycleTime, kSpiderPeriod),
+        closeTo(kSpiderRest, 0.001),
+      );
+      expect(spiderDropAt(kSpiderPeriod - 0.01, kSpiderPeriod), kSpiderRest);
+    });
+
+    test('a tucked spider cannot kill anything', () {
+      final tucked = spiderBox(0, kSpiderRest).deflate(kHitboxShrink);
+      final onCeiling =
+          playerBox(0, restingY(gravityUp: true)).deflate(kHitboxShrink);
+      expect(tucked.overlaps(onCeiling), isFalse,
+          reason: 'resting in the canopy, entirely out of the band');
+    });
+
+    test('the floor is never closed, at any point in the cycle', () {
+      final onFloor =
+          playerBox(0, restingY(gravityUp: false)).deflate(kHitboxShrink);
+      for (var t = 0.0; t < kSpiderPeriod; t += 0.005) {
+        final box = spiderBox(0, spiderDropAt(t, kSpiderPeriod))
+            .deflate(kHitboxShrink);
+        expect(box.overlaps(onFloor), isFalse,
+            reason: 'there must always be somewhere to stand');
+      }
+    });
+
+    test('the ceiling is closed part of the time and open the rest', () {
+      final onCeiling =
+          playerBox(0, restingY(gravityUp: true)).deflate(kHitboxShrink);
+      var closed = false;
+      var open = false;
+      for (var t = 0.0; t < kSpiderPeriod; t += 0.005) {
+        final box = spiderBox(0, spiderDropAt(t, kSpiderPeriod))
+            .deflate(kHitboxShrink);
+        if (box.overlaps(onCeiling)) {
+          closed = true;
+        } else {
+          open = true;
+        }
+      }
+      expect(closed, isTrue, reason: 'it does sweep the ceiling');
+      expect(open, isTrue, reason: 'but it is a rhythm, not a wall');
+    });
+
+    test('a hanging spider cannot be jumped from the floor', () {
+      // The peak of a jump actually clears it — the arc into it does not. So
+      // walk the real arc rather than checking the peak.
+      final hanging = spiderBox(0, kSpiderReach).deflate(kHitboxShrink);
+      final floor = restingY(gravityUp: false);
+
+      var caught = false;
+      var y = floor;
+      var vy = -kJumpVelocity;
+      while (y <= floor) {
+        vy += kPlayerGravity * kFixedStep;
+        y += vy * kFixedStep;
+        if (playerBox(0, y).deflate(kHitboxShrink).overlaps(hanging)) {
+          caught = true;
+        }
+      }
+      expect(caught, isTrue);
+    });
+  });
+
+  group('coins', () {
+    /// A coin sitting exactly where the character runs along the floor.
+    Coin onFloorAt(double x) =>
+        Coin(x: x, y: restingY(gravityUp: false) + kPlayerSize / 2);
+
+    test('running through one picks it up, once', () {
+      final sim = LevelSimulator(level(coins: [onFloorAt(400)]));
+      while (sim.state.isRunning && sim.state.x < 600) {
+        sim.step();
+      }
+
+      expect(sim.state.coins, 1);
+      expect(sim.isCollected(0), isTrue);
+      expect(sim.state.status, RunStatus.running,
+          reason: 'a coin must never end a run');
+    });
+
+    test('a coin on the other surface is left behind', () {
+      final ceiling =
+          Coin(x: 400, y: restingY(gravityUp: true) + kPlayerSize / 2);
+      final sim = LevelSimulator(level(coins: [ceiling]));
+      while (sim.state.isRunning && sim.state.x < 600) {
+        sim.step();
+      }
+
+      expect(sim.state.coins, 0);
+    });
+
+    test('the pickup box is grown, not shrunk', () {
+      // The opposite of every lethal box in the game: a generous reward feels
+      // good where a generous threat feels unfair.
+      final coin = onFloorAt(400);
+      // The character's left edge, one unit inside the grown box and well
+      // clear of the drawn one.
+      final grazing = playerBox(
+        400 + kCoinSize / 2 + kCoinReach - 1,
+        restingY(gravityUp: false),
+      );
+      expect(coin.box.deflate(-kCoinReach).overlaps(grazing), isTrue);
+      expect(coin.box.overlaps(grazing), isFalse,
+          reason: 'the drawn box would have missed this one');
+    });
+
+    test('coins do not change how the level runs', () {
+      // They neither block nor kill, so the same inputs must produce the same
+      // run whether or not there are coins on the track. This is what lets
+      // the solver ignore them entirely.
+      const enemy = [Bolted(x: 2600, surface: Surface.floor)];
+      final bare = LevelSimulator(level(bolted: enemy));
+      final withCoins = LevelSimulator(
+        level(bolted: enemy, coins: [for (var x = 400.0; x < 2400; x += 200) onFloorAt(x)]),
+      );
+
+      for (var i = 0; i < 1200; i++) {
+        bare.step();
+        withCoins.step();
+      }
+
+      expect(withCoins.state.x, closeTo(bare.state.x, 1e-9));
+      expect(withCoins.state.y, closeTo(bare.state.y, 1e-9));
+      expect(withCoins.state.status, bare.state.status);
+      expect(withCoins.state.coins, greaterThan(0));
+    });
+
+    test('a death gives back the coins past the checkpoint, not before it',
+        () {
+      final sim = LevelSimulator(level(
+        bolted: const [Bolted(x: 2600, surface: Surface.floor)],
+        coins: [onFloorAt(1000), onFloorAt(2200)],
+      ));
+
+      while (sim.state.isRunning) {
+        sim.step();
+      }
+      expect(sim.state.status, RunStatus.dead);
+      expect(sim.state.coins, 2, reason: 'both were picked up on the way');
+
+      sim.respawn();
+
+      // The 2000 checkpoint splits them: the first is banked, the second is
+      // on the stretch about to be run again.
+      expect(sim.state.checkpointX, 2000);
+      expect(sim.state.coins, 1);
+      expect(sim.isCollected(0), isTrue);
+      expect(sim.isCollected(1), isFalse);
+    });
+
+    test('a restart puts every coin back', () {
+      final sim = LevelSimulator(level(coins: [onFloorAt(400)]));
+      while (sim.state.isRunning && sim.state.x < 600) {
+        sim.step();
+      }
+      expect(sim.state.coins, 1);
+
+      sim.restart();
+
+      expect(sim.state.coins, 0);
+      expect(sim.isCollected(0), isFalse);
+    });
+  });
+
   group('hit boxes', () {
     test('come in 3 units on every side', () {
       final drawn = playerBox(100, 148);
@@ -674,6 +921,7 @@ void main() {
       'lib/game/logic/run_state.dart',
       'lib/game/logic/level_model.dart',
       'lib/game/logic/level_simulator.dart',
+      'lib/game/logic/level_generator.dart',
     ]) {
       final source = File(path).readAsStringSync();
       final imports =

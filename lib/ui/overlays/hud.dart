@@ -17,41 +17,59 @@ class Hud extends StatelessWidget {
       valueListenable: game.stateNotifier,
       builder: (context, state, _) => Column(
         children: [
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 12, 0),
-              child: Row(
-                children: [
-                  Text(
-                    state.elapsed.toStringAsFixed(1),
-                    style: const TextStyle(
-                      color: Palette.text,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      fontFeatures: [FontFeature.tabularFigures()],
+          // A soft veil under the top row. The world behind it is a bright
+          // sky now, and the clock and the level number are light text.
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x8C0A1410), Color(0x000A1410)],
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 12, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      state.elapsed.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: Palette.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Text(
-                    'LEVEL ${game.level.id}',
-                    style: const TextStyle(
+                    const SizedBox(width: 14),
+                    Text(
+                      'LEVEL ${game.level.id}',
+                      style: const TextStyle(
+                        color: Palette.textMuted,
+                        fontSize: 12,
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (game.level.coins.isNotEmpty) ...[
+                      _Coins(
+                        collected: state.coins,
+                        total: game.level.coins.length,
+                      ),
+                      const SizedBox(width: 14),
+                    ],
+                    _Lives(lives: state.lives),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: onPause,
+                      icon: const Icon(Icons.pause_rounded),
                       color: Palette.textMuted,
-                      fontSize: 12,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w700,
+                      tooltip: 'Pause',
                     ),
-                  ),
-                  const Spacer(),
-                  _Lives(lives: state.lives),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: onPause,
-                    icon: const Icon(Icons.pause_rounded),
-                    color: Palette.textMuted,
-                    tooltip: 'Pause',
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -66,6 +84,41 @@ class Hud extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Coins picked up out of the coins on this level.
+///
+/// Shown as a fraction rather than a running total, because a coin is worth
+/// nothing on its own: what the player is chasing is all of them on one run.
+class _Coins extends StatelessWidget {
+  const _Coins({required this.collected, required this.total});
+
+  final int collected;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final complete = collected == total;
+    return Row(
+      children: [
+        Icon(
+          Icons.circle,
+          size: 12,
+          color: complete ? Palette.coinCore : Palette.coin,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$collected/$total',
+          style: TextStyle(
+            color: complete ? Palette.coinCore : Palette.text,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
     );
   }
 }

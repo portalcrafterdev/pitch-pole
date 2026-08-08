@@ -24,6 +24,7 @@ class RunState {
     this.status = RunStatus.running,
     this.elapsed = 0,
     this.checkpointX = 0,
+    this.coins = 0,
   }) : y = y ?? restingY(gravityUp: gravityUp);
 
   /// World position of the character's left edge. Starts at 0.
@@ -48,6 +49,14 @@ class RunState {
   /// Where the character respawns after a death.
   double checkpointX;
 
+  /// How many coins have been picked up on this attempt.
+  ///
+  /// Only a counter for the HUD. Which coins are gone is tracked by the
+  /// simulator, not here, so that copying a state stays cheap — the solver
+  /// copies it hundreds of thousands of times per level and has no interest
+  /// in coins.
+  int coins;
+
   bool get isRunning => status == RunStatus.running;
 
   /// Level time at the current position. Because forward speed is constant,
@@ -67,6 +76,7 @@ class RunState {
         status: status,
         elapsed: elapsed,
         checkpointX: checkpointX,
+        coins: coins,
       );
 
   @override

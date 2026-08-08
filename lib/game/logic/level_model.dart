@@ -184,6 +184,87 @@ class Fire {
       };
 }
 
+/// Hovers in the middle of the band, belonging to no surface.
+///
+/// It cannot be flipped past or jumped over, because both of those put the
+/// character in the air where it is. The only answer is to be on the surface
+/// you want before you get here, and stay there.
+class Bat {
+  const Bat({required this.x, this.period = kBatPeriod, this.phase = 0});
+
+  /// Centre of the bat, in world units.
+  final double x;
+
+  /// Seconds for one full drift up and back.
+  final double period;
+
+  final double phase;
+
+  double centreAt(double levelTime) => batCentreAt(levelTime + phase, period);
+
+  Box boxAt(double levelTime) => batBox(x, centreAt(levelTime));
+
+  factory Bat.fromJson(Map<String, dynamic> json) => Bat(
+        x: (json['x'] as num).toDouble(),
+        period: (json['period'] as num?)?.toDouble() ?? kBatPeriod,
+        phase: (json['phase'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {'x': x, 'period': period, 'phase': phase};
+}
+
+/// Drops out of the canopy on a thread, hangs, and climbs back.
+///
+/// Always anchored to the ceiling — there is no floor spider, because the
+/// whole point is that the floor stays open.
+class Spider {
+  const Spider({
+    required this.x,
+    this.period = kSpiderPeriod,
+    this.phase = 0,
+  });
+
+  /// Centre of the spider, in world units.
+  final double x;
+
+  final double period;
+  final double phase;
+
+  /// How far below the ceiling line its top sits. Negative while tucked away.
+  double dropAt(double levelTime) => spiderDropAt(levelTime + phase, period);
+
+  Box boxAt(double levelTime) => spiderBox(x, dropAt(levelTime));
+
+  factory Spider.fromJson(Map<String, dynamic> json) => Spider(
+        x: (json['x'] as num).toDouble(),
+        period: (json['period'] as num?)?.toDouble() ?? kSpiderPeriod,
+        phase: (json['phase'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {'x': x, 'period': period, 'phase': phase};
+}
+
+/// Something to pick up on the way past. Never kills, never blocks.
+///
+/// Unlike every obstacle a coin carries its own [y], because coins are placed
+/// along the line the level is actually run on rather than against a surface.
+class Coin {
+  const Coin({required this.x, required this.y});
+
+  /// Centre of the coin, in world units.
+  final double x;
+  final double y;
+
+  Box get box => coinBox(x, y);
+
+  factory Coin.fromJson(Map<String, dynamic> json) => Coin(
+        x: (json['x'] as num).toDouble(),
+        y: (json['y'] as num).toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => {'x': x, 'y': y};
+}
+
 class LevelModel {
   const LevelModel({
     required this.id,
@@ -195,6 +276,9 @@ class LevelModel {
     this.blades = const [],
     this.stones = const [],
     this.fires = const [],
+    this.bats = const [],
+    this.spiders = const [],
+    this.coins = const [],
     this.checkpoints = const [],
   });
 
@@ -211,12 +295,37 @@ class LevelModel {
   final List<Blade> blades;
   final List<Stone> stones;
   final List<Fire> fires;
+  final List<Bat> bats;
+  final List<Spider> spiders;
+
+  /// Collectibles. Deliberately not part of [obstacleCount] or [obstacleXs]:
+  /// a coin is not in the way, so it must not count towards spacing rules or
+  /// satisfy the no dead track rule.
+  final List<Coin> coins;
 
   /// World positions the character respawns at, in ascending order.
   final List<double> checkpoints;
 
   /// How long the level takes at its own speed. Always 30 seconds.
   double get seconds => length / runSpeed;
+
+  /// The same level with [coins] laid along it. Coins are worked out after a
+  /// level is built, because where they go depends on how it is run.
+  LevelModel withCoins(List<Coin> coins) => LevelModel(
+        id: id,
+        length: length,
+        runSpeed: runSpeed,
+        hopPeriod: hopPeriod,
+        bolted: bolted,
+        hoppers: hoppers,
+        blades: blades,
+        stones: stones,
+        fires: fires,
+        bats: bats,
+        spiders: spiders,
+        coins: coins,
+        checkpoints: checkpoints,
+      );
 
   /// The last checkpoint at or behind [x], or the start.
   double checkpointBehind(double x) {
@@ -252,6 +361,18 @@ class LevelModel {
           for (final e in (json['fires'] as List<dynamic>? ?? const []))
             Fire.fromJson(e as Map<String, dynamic>),
         ],
+        bats: [
+          for (final e in (json['bats'] as List<dynamic>? ?? const []))
+            Bat.fromJson(e as Map<String, dynamic>),
+        ],
+        spiders: [
+          for (final e in (json['spiders'] as List<dynamic>? ?? const []))
+            Spider.fromJson(e as Map<String, dynamic>),
+        ],
+        coins: [
+          for (final e in (json['coins'] as List<dynamic>? ?? const []))
+            Coin.fromJson(e as Map<String, dynamic>),
+        ],
         checkpoints: [
           for (final e in (json['checkpoints'] as List<dynamic>? ?? const []))
             (e as num).toDouble(),
@@ -268,6 +389,9 @@ class LevelModel {
         'blades': [for (final e in blades) e.toJson()],
         'stones': [for (final e in stones) e.toJson()],
         'fires': [for (final e in fires) e.toJson()],
+        'bats': [for (final e in bats) e.toJson()],
+        'spiders': [for (final e in spiders) e.toJson()],
+        'coins': [for (final e in coins) e.toJson()],
         'checkpoints': checkpoints,
       };
 
@@ -277,7 +401,9 @@ class LevelModel {
       hoppers.length +
       blades.length +
       stones.length +
-      fires.length;
+      fires.length +
+      bats.length +
+      spiders.length;
 
   /// Where everything sits, of any kind, in ascending order. Used to check
   /// that the level never leaves the player with nothing to do.
@@ -287,11 +413,14 @@ class LevelModel {
         ...blades.map((e) => e.x),
         ...stones.map((e) => e.x),
         ...fires.map((e) => e.x),
+        ...bats.map((e) => e.x),
+        ...spiders.map((e) => e.x),
       ]..sort();
 
   @override
   String toString() => 'Level $id (${length.round()} units at '
       '${runSpeed.round()}/s, ${bolted.length} bolted, '
       '${hoppers.length} hoppers, ${blades.length} blades, '
-      '${stones.length} stones, ${fires.length} fires)';
+      '${stones.length} stones, ${fires.length} fires, '
+      '${bats.length} bats, ${spiders.length} spiders)';
 }

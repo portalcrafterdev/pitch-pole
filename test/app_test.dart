@@ -2,10 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
+import 'package:pitchpole/game/logic/level_generator.dart';
 import 'package:pitchpole/main.dart';
 import 'package:pitchpole/ui/overlays/overlay_panel.dart';
 import 'package:pitchpole/ui/screens/level_select_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Loads the level pack for real before a screen that needs it is pumped.
+///
+/// The repository parses the pack on another isolate, because at 1500 levels
+/// it is a few megabytes and would hitch the home screen otherwise. A real
+/// isolate never finishes inside `testWidgets`' fake clock, so the load has to
+/// happen in [WidgetTester.runAsync] first; after that the repository serves
+/// it from cache and the widgets settle normally.
+Future<void> warmLevels(WidgetTester tester) =>
+    tester.runAsync(() => levelRepository.loadAll());
 
 void main() {
   setUp(() async {
@@ -14,13 +25,17 @@ void main() {
   });
 
   testWidgets('the level pack loads from the asset bundle', (tester) async {
-    final levels = await levelRepository.loadAll();
+    // Through runAsync, because the repository parses on another isolate and
+    // a real isolate never finishes under the fake test clock.
+    final levels = (await tester.runAsync(levelRepository.loadAll))!;
 
-    expect(levels.length, greaterThanOrEqualTo(15));
+    expect(levels.length, kTotalLevels);
     expect(levels.first.id, 1);
+    expect(levels.last.id, kTotalLevels);
   });
 
   testWidgets('home offers play and reaches level select', (tester) async {
+    await warmLevels(tester);
     await tester.pumpWidget(const PitchpoleApp());
     await tester.pumpAndSettle();
 
@@ -51,6 +66,7 @@ void main() {
         tester.view.devicePixelRatio = 2;
         addTearDown(tester.view.reset);
 
+        await warmLevels(tester);
         await tester.pumpWidget(const PitchpoleApp());
         await tester.pumpAndSettle();
 
@@ -83,6 +99,7 @@ void main() {
         tester.view.devicePixelRatio = 2;
         addTearDown(tester.view.reset);
 
+        await warmLevels(tester);
         await tester.pumpWidget(const MaterialApp(home: LevelSelectScreen()));
         await tester.pumpAndSettle();
 
@@ -90,6 +107,56 @@ void main() {
             reason: 'the page overflowed at ${entry.value}');
       });
     }
+  });
+
+  group('level select opens where the player is', () {
+    /// Pumps level select on a realistic landscape phone and returns the
+    /// scroll offset it settled at.
+    Future<double> openLevelSelect(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(732, 360) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      await warmLevels(tester);
+      await tester.pumpWidget(const MaterialApp(home: LevelSelectScreen()));
+      await tester.pumpAndSettle();
+
+      return tester
+          .widget<GridView>(find.byType(GridView))
+          .controller!
+          .offset;
+    }
+
+    testWidgets('a new player starts at the top', (tester) async {
+      expect(await openLevelSelect(tester), 0,
+          reason: 'nothing is solved, so level 1 is the current level');
+      expect(find.text('1'), findsWidgets);
+    });
+
+    testWidgets('one level in, it is still at the top', (tester) async {
+      await progressStore.record(1, 3, 30.0);
+
+      expect(await openLevelSelect(tester), 0,
+          reason: 'level 2 is in the first row, so there is nothing to '
+              'scroll past');
+      expect(find.text('2'), findsWidgets);
+    });
+
+    testWidgets('deep in the pack it scrolls to the current level',
+        (tester) async {
+      // The whole reason this exists: at 1500 levels, opening at the top
+      // leaves a player hundreds of rows away from where they got to.
+      for (var id = 1; id <= 400; id++) {
+        await progressStore.record(id, 3, 30.0);
+      }
+
+      final offset = await openLevelSelect(tester);
+      expect(offset, greaterThan(0));
+
+      // Level 401 is the first unsolved one, and it should be on screen.
+      expect(find.text('401'), findsOneWidget,
+          reason: 'the grid should open on the level the player is on');
+    });
   });
 
   testWidgets('only the first level is unlocked on a fresh install',

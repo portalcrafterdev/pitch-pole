@@ -101,6 +101,59 @@ const double kFireBurnTime = kFireRiseTime + kFireHoldTime + kFireFallTime;
 /// One full warning and burn. A vent's period has to be longer than this.
 const double kFireCycleTime = kFireWarnTime + kFireBurnTime;
 
+/// A bat hangs in the middle of the band and drifts. It never comes near
+/// either surface, so a character that stays put is always safe.
+///
+/// It is the only obstacle that punishes leaving a surface. Every other one is
+/// answered by flipping or jumping; a bat closes both, because a flip crosses
+/// the band and a jump peaks inside it. The answer is to already be where you
+/// mean to be, which is a decision the player has to make *before* arriving.
+const double kBatWidth = 28;
+const double kBatHeight = 22;
+const double kBatPeriod = 2.2;
+
+/// Middle of the band, where a bat hovers.
+const double kBatCentreY = (kCeilingSurfaceY + kFloorSurfaceY) / 2;
+
+/// How far a bat drifts either side of the middle. Small enough that the
+/// margin to a resting character never closes.
+const double kBatDrift = 10;
+
+/// A spider drops out of the canopy on a thread, hangs, and climbs back.
+///
+/// While it is moving it sweeps the ceiling; while it hangs it closes the
+/// middle. So it shuts the ceiling and then the air, in that order, and the
+/// floor is never blocked. The descent is slow on purpose: unlike a fire it
+/// carries its own warning, because you watch it coming down.
+const double kSpiderSize = 24;
+const double kSpiderPeriod = 3.4;
+
+/// How far a spider's top gets below the ceiling line at full extension.
+/// Deep enough to close the middle, short of the floor so there is always
+/// somewhere to stand.
+const double kSpiderReach = 62;
+
+/// Where a spider sits when it is not out: fully tucked up into the canopy,
+/// clear of the band, so a resting spider cannot kill anything.
+const double kSpiderRest = -kSpiderSize;
+
+const double kSpiderDropTime = 0.9;
+const double kSpiderHangTime = 0.6;
+const double kSpiderClimbTime = 0.8;
+
+/// One full drop, hang and climb. A spider's period has to be longer.
+const double kSpiderCycleTime =
+    kSpiderDropTime + kSpiderHangTime + kSpiderClimbTime;
+
+/// A coin sitting in the run, to be collected on the way past.
+///
+/// Coins never kill and never block, so they are the one box in the game that
+/// is *grown* rather than shrunk. The 3 unit shrink on everything else exists
+/// because a generous lethal box feels unfair; a generous reward box feels
+/// good, so the rule is inverted here on purpose.
+const double kCoinSize = 14;
+const double kCoinReach = 3;
+
 /// Cosmetic only. Never part of the hit box.
 const double kBoltedBob = 1.5;
 
@@ -252,6 +305,55 @@ Box fireBox(double x, {required bool onCeiling, required double height}) => Box(
       onCeiling ? kCeilingSurfaceY : kFloorSurfaceY - height,
       kFireWidth,
       height,
+    );
+
+/// A coin's box. [x] and [y] are its centre, unlike every obstacle, because a
+/// coin sits wherever the character passed rather than on a surface.
+Box coinBox(double x, double y) => Box(
+      x - kCoinSize / 2,
+      y - kCoinSize / 2,
+      kCoinSize,
+      kCoinSize,
+    );
+
+/// Where a bat's centre sits, [cycleTime] seconds into its drift.
+double batCentreAt(double cycleTime, double period) =>
+    kBatCentreY + kBatDrift * sin(2 * pi * (cycleTime % period) / period);
+
+/// A bat's drawn box around [centreY]. [x] is its centre.
+Box batBox(double x, double centreY) => Box(
+      x - kBatWidth / 2,
+      centreY - kBatHeight / 2,
+      kBatWidth,
+      kBatHeight,
+    );
+
+/// How far a spider's top is below the ceiling line, [cycleTime] seconds into
+/// its cycle. Negative while it is tucked up in the canopy.
+double spiderDropAt(double cycleTime, double period) {
+  final cycle = cycleTime % period;
+
+  if (cycle < kSpiderDropTime) {
+    // Smoothstepped, so it eases out of the canopy and settles rather than
+    // dropping like a stone. A spider is the readable one.
+    final t = cycle / kSpiderDropTime;
+    return kSpiderRest +
+        (kSpiderReach - kSpiderRest) * t * t * (3 - 2 * t);
+  }
+  if (cycle < kSpiderDropTime + kSpiderHangTime) return kSpiderReach;
+  if (cycle < kSpiderCycleTime) {
+    final t = (cycle - kSpiderDropTime - kSpiderHangTime) / kSpiderClimbTime;
+    return kSpiderRest + (kSpiderReach - kSpiderRest) * (1 - t);
+  }
+  return kSpiderRest;
+}
+
+/// A spider's drawn box at [drop] below the ceiling line. [x] is its centre.
+Box spiderBox(double x, double drop) => Box(
+      x - kSpiderSize / 2,
+      kCeilingSurfaceY + drop,
+      kSpiderSize,
+      kSpiderSize,
     );
 
 /// A hopper's drawn box at [height] above its own surface. [x] is its centre.

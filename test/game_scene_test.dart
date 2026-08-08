@@ -3,12 +3,14 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitchpole/game/components/bat_enemy.dart';
 import 'package:pitchpole/game/components/blade_obstacle.dart';
 import 'package:pitchpole/game/components/bolted_enemy.dart';
 import 'package:pitchpole/game/components/door.dart';
 import 'package:pitchpole/game/components/fire_obstacle.dart';
 import 'package:pitchpole/game/components/hopper_enemy.dart';
 import 'package:pitchpole/game/components/player.dart';
+import 'package:pitchpole/game/components/spider_enemy.dart';
 import 'package:pitchpole/game/components/stone_obstacle.dart';
 import 'package:pitchpole/game/logic/level_model.dart';
 import 'package:pitchpole/game/logic/physics.dart';
@@ -26,6 +28,8 @@ const LevelModel _level = LevelModel(
   blades: [Blade(x: 5500, period: 2.0)],
   stones: [Stone(x: 5800, surface: Surface.ceiling, period: 2.4)],
   fires: [Fire(x: 5650, surface: Surface.floor, period: 2.6)],
+  bats: [Bat(x: 5350)],
+  spiders: [Spider(x: 5900)],
   checkpoints: [2000, 4000],
 );
 
@@ -76,7 +80,42 @@ void main() {
     expect(game.world.children.whereType<BladeObstacle>().length, 1);
     expect(game.world.children.whereType<StoneObstacle>().length, 1);
     expect(game.world.children.whereType<FireObstacle>().length, 1);
+    expect(game.world.children.whereType<BatEnemy>().length, 1);
+    expect(game.world.children.whereType<SpiderEnemy>().length, 1);
     expect(game.world.children.whereType<DoorComponent>().length, 1);
+  });
+
+  testWidgets('the animals move on their own, off the level clock',
+      (tester) async {
+    final game = await mount(tester);
+    final bat = game.world.children.whereType<BatEnemy>().first;
+    final spider = game.world.children.whereType<SpiderEnemy>().first;
+
+    final batYs = <double>[];
+    final spiderYs = <double>[];
+    for (var i = 0; i < 10; i++) {
+      await play(tester, 0.2);
+      batYs.add(bat.position.y);
+      spiderYs.add(spider.position.y);
+    }
+
+    expect(batYs.toSet().length, greaterThan(1),
+        reason: 'the bat should be drifting');
+    expect(spiderYs.toSet().length, greaterThan(1),
+        reason: 'the spider should be dropping and climbing');
+  });
+
+  testWidgets('a bat stays in the middle and never reaches a surface',
+      (tester) async {
+    final game = await mount(tester);
+    final bat = game.world.children.whereType<BatEnemy>().first;
+
+    for (var i = 0; i < 20; i++) {
+      await play(tester, 0.1);
+      expect(bat.position.y, greaterThan(kCeilingSurfaceY),
+          reason: 'a bat belongs to no surface');
+      expect(bat.position.y + kBatHeight, lessThan(kFloorSurfaceY));
+    }
   });
 
   testWidgets('the moving obstacles move on their own', (tester) async {

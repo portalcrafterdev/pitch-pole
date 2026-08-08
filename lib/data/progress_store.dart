@@ -20,6 +20,7 @@ enum ControlScheme {
 class ProgressStore extends ChangeNotifier {
   static const String _starsPrefix = 'stars.';
   static const String _bestPrefix = 'best.';
+  static const String _coinsPrefix = 'coins.';
   static const String _hapticsKey = 'settings.haptics';
   static const String _soundKey = 'settings.sound';
   static const String _musicKey = 'settings.music';
@@ -28,6 +29,9 @@ class ProgressStore extends ChangeNotifier {
   SharedPreferences? _prefs;
   final Map<int, int> _stars = {};
   final Map<int, double> _bestSeconds = {};
+
+  /// Most coins picked up on a single run of a level.
+  final Map<int, int> _bestCoins = {};
   bool _haptics = true;
   bool _sound = true;
   bool _music = true;
@@ -42,6 +46,7 @@ class ProgressStore extends ChangeNotifier {
     final prefs = _prefs = await SharedPreferences.getInstance();
     _stars.clear();
     _bestSeconds.clear();
+    _bestCoins.clear();
     for (final key in prefs.getKeys()) {
       if (key.startsWith(_starsPrefix)) {
         final id = int.tryParse(key.substring(_starsPrefix.length));
@@ -51,6 +56,10 @@ class ProgressStore extends ChangeNotifier {
         final id = int.tryParse(key.substring(_bestPrefix.length));
         final best = prefs.getDouble(key);
         if (id != null && best != null) _bestSeconds[id] = best;
+      } else if (key.startsWith(_coinsPrefix)) {
+        final id = int.tryParse(key.substring(_coinsPrefix.length));
+        final coins = prefs.getInt(key);
+        if (id != null && coins != null) _bestCoins[id] = coins;
       }
     }
     _haptics = prefs.getBool(_hapticsKey) ?? true;
@@ -83,17 +92,32 @@ class ProgressStore extends ChangeNotifier {
   /// Personal best finishing time, or null if never finished.
   double? bestSecondsFor(int levelId) => _bestSeconds[levelId];
 
+  /// Most coins picked up on one run of a level.
+  int bestCoinsFor(int levelId) => _bestCoins[levelId] ?? 0;
+
+  int get totalCoins => _bestCoins.values.fold(0, (sum, c) => sum + c);
+
   /// Records a finish, keeping the best star count and the fastest time. The
   /// two are tracked separately: a slow clean run keeps its 3 stars, a fast
   /// scrappy one keeps its time.
-  Future<void> record(int levelId, int stars, double seconds) async {
+  Future<void> record(
+    int levelId,
+    int stars,
+    double seconds, {
+    int coins = 0,
+  }) async {
     final best = _bestSeconds[levelId];
     final improvedTime = best == null || seconds < best;
     final improvedStars = stars > starsFor(levelId);
-    if (!improvedTime && !improvedStars) return;
+    // Kept apart from the other two on purpose: a run that sweeps every coin
+    // slowly should keep its coins, and a fast scrappy one should keep its
+    // time.
+    final improvedCoins = coins > bestCoinsFor(levelId);
+    if (!improvedTime && !improvedStars && !improvedCoins) return;
 
     if (improvedStars) _stars[levelId] = stars;
     if (improvedTime) _bestSeconds[levelId] = seconds;
+    if (improvedCoins) _bestCoins[levelId] = coins;
     notifyListeners();
 
     if (improvedStars) {
@@ -101,6 +125,9 @@ class ProgressStore extends ChangeNotifier {
     }
     if (improvedTime) {
       await _prefs?.setDouble('$_bestPrefix$levelId', seconds);
+    }
+    if (improvedCoins) {
+      await _prefs?.setInt('$_coinsPrefix$levelId', coins);
     }
   }
 
@@ -133,13 +160,15 @@ class ProgressStore extends ChangeNotifier {
   }
 
   Future<void> resetProgress() async {
-    final ids = {..._stars.keys, ..._bestSeconds.keys};
+    final ids = {..._stars.keys, ..._bestSeconds.keys, ..._bestCoins.keys};
     _stars.clear();
     _bestSeconds.clear();
+    _bestCoins.clear();
     notifyListeners();
     for (final id in ids) {
       await _prefs?.remove('$_starsPrefix$id');
       await _prefs?.remove('$_bestPrefix$id');
+      await _prefs?.remove('$_coinsPrefix$id');
     }
   }
 }

@@ -29,6 +29,7 @@ class SurfaceStrip extends PositionComponent {
   late final List<_Blade> _grass = _sow(seed: 5, count: 74, up: true);
   late final List<_Blade> _leaves = _sow(seed: 13, count: 62, up: false);
   late final List<_Rock> _rocks = _scatter(seed: 23, count: 16);
+  late final List<_Lobe> _crownLobes = _crownline(seed: 31, count: 30);
 
   final Paint _earth = Paint()..color = Palette.earth;
   final Paint _canopy = Paint()..color = Palette.canopy;
@@ -37,6 +38,8 @@ class SurfaceStrip extends PositionComponent {
   final Paint _leafEdge = Paint()..color = Palette.canopyMid;
   final Paint _blade = Paint()..color = Palette.moss;
   final Paint _rock = Paint()..color = Palette.earthDark;
+  final Paint _subsoil = Paint()..color = Palette.earthDark;
+  final Paint _crown = Paint()..color = Palette.canopyMid;
 
   static List<_Blade> _sow({
     required int seed,
@@ -54,6 +57,16 @@ class SurfaceStrip extends PositionComponent {
     });
   }
 
+  static List<_Lobe> _crownline({required int seed, required int count}) {
+    final random = Random(seed);
+    return List.generate(count, (i) {
+      return _Lobe(
+        x: (i + random.nextDouble() * 0.8) * (_span / count),
+        radius: 7 + random.nextDouble() * 8,
+      );
+    });
+  }
+
   static List<_Rock> _scatter({required int seed, required int count}) {
     final random = Random(seed);
     return List.generate(count, (i) {
@@ -67,11 +80,20 @@ class SurfaceStrip extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    // The solid mass above and below the band.
+    // The canopy is drawn at its real thickness rather than filling
+    // everything above the band, so the sky behind it shows through. The
+    // backdrop paints that sky; this only has to stop short of it.
     canvas.drawRect(
-      const Rect.fromLTWH(0, 0, kCanvasWidth, kCeilingSurfaceY),
+      const Rect.fromLTWH(
+        0,
+        kCeilingSurfaceY - kBlockThickness,
+        kCanvasWidth,
+        kBlockThickness,
+      ),
       _canopy,
     );
+    _renderCanopyTop(canvas);
+
     canvas.drawRect(
       const Rect.fromLTWH(
         0,
@@ -80,6 +102,16 @@ class SurfaceStrip extends PositionComponent {
         kCanvasHeight - kFloorSurfaceY,
       ),
       _earth,
+    );
+    // Deeper soil further down, so the ground is not one flat slab.
+    canvas.drawRect(
+      const Rect.fromLTWH(
+        0,
+        kFloorSurfaceY + kBlockThickness,
+        kCanvasWidth,
+        kCanvasHeight - kFloorSurfaceY - kBlockThickness,
+      ),
+      _subsoil,
     );
 
     // A moss cap along the top of the earth, and the bright line the
@@ -114,6 +146,28 @@ class SurfaceStrip extends PositionComponent {
     _renderBlades(canvas, _grass, offset, up: true);
     _renderBlades(canvas, _leaves, offset, up: false);
     _renderRocks(canvas, offset);
+  }
+
+  /// A scalloped top edge on the canopy, so the treeline meets the sky as
+  /// foliage rather than as a ruled line. Scrolls with the world.
+  void _renderCanopyTop(Canvas canvas) {
+    const top = kCeilingSurfaceY - kBlockThickness;
+    final offset = scrollX % _span;
+
+    for (final lobe in _crownLobes) {
+      final x = lobe.x - offset;
+      for (final placed in [x, x + _span]) {
+        if (placed < -20 || placed > kCanvasWidth + 20) continue;
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(placed, top + 1),
+            width: lobe.radius * 2,
+            height: lobe.radius * 1.5,
+          ),
+          _crown,
+        );
+      }
+    }
   }
 
   /// Grass sprouting up off the floor, and leaves hanging down off the
@@ -175,6 +229,13 @@ class _Blade {
   /// How far the tip is pushed sideways from the root.
   final double lean;
   final double width;
+}
+
+class _Lobe {
+  const _Lobe({required this.x, required this.radius});
+
+  final double x;
+  final double radius;
 }
 
 class _Rock {

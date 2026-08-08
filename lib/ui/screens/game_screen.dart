@@ -35,6 +35,7 @@ class _GameScreenState extends State<GameScreen> {
   final FocusNode _focus = FocusNode();
 
   int _stars = 0;
+  int _coins = 0;
   double _seconds = 0;
   double? _previousBest;
 
@@ -61,12 +62,14 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onWin(int stars, double seconds) {
+    final coins = _game.sim.state.coins;
     setState(() {
       _stars = stars;
       _seconds = seconds;
+      _coins = coins;
       _previousBest = progressStore.bestSecondsFor(_level.id);
     });
-    progressStore.record(_level.id, stars, seconds);
+    progressStore.record(_level.id, stars, seconds, coins: coins);
     _game.overlays.add(_complete);
   }
 
@@ -164,6 +167,8 @@ class _GameScreenState extends State<GameScreen> {
                   stars: _stars,
                   seconds: _seconds,
                   bestSeconds: _previousBest,
+                  coins: _coins,
+                  totalCoins: _level.coins.length,
                   hasNext: _hasNext,
                   onNext: () => _goToLevel(widget.index + 1),
                   onRetry: _restart,

@@ -16,7 +16,9 @@ class LevelIndex {
         _hoppers = [...level.hoppers]..sort((a, b) => a.x.compareTo(b.x)),
         _blades = [...level.blades]..sort((a, b) => a.x.compareTo(b.x)),
         _stones = [...level.stones]..sort((a, b) => a.x.compareTo(b.x)),
-        _fires = [...level.fires]..sort((a, b) => a.x.compareTo(b.x)) {
+        _fires = [...level.fires]..sort((a, b) => a.x.compareTo(b.x)),
+        _bats = [...level.bats]..sort((a, b) => a.x.compareTo(b.x)),
+        _spiders = [...level.spiders]..sort((a, b) => a.x.compareTo(b.x)) {
     _bladeX = [for (final e in _blades) e.x];
     _stoneX = [for (final e in _stones) e.x];
     _fireX = [for (final e in _fires) e.x];
@@ -49,6 +51,16 @@ class LevelIndex {
       _fireLeft.add(fire.x - kFireWidth / 2 + kHitboxShrink);
       _fireRight.add(fire.x + kFireWidth / 2 - kHitboxShrink);
     }
+    for (final bat in _bats) {
+      _batLeft.add(bat.x - kBatWidth / 2 + kHitboxShrink);
+      _batRight.add(bat.x + kBatWidth / 2 - kHitboxShrink);
+    }
+    for (final spider in _spiders) {
+      _spiderLeft.add(spider.x - kSpiderSize / 2 + kHitboxShrink);
+      _spiderRight.add(spider.x + kSpiderSize / 2 - kHitboxShrink);
+    }
+    _batX = [for (final e in _bats) e.x];
+    _spiderX = [for (final e in _spiders) e.x];
   }
 
   final LevelModel level;
@@ -57,11 +69,15 @@ class LevelIndex {
   final List<Blade> _blades;
   final List<Stone> _stones;
   final List<Fire> _fires;
+  final List<Bat> _bats;
+  final List<Spider> _spiders;
   late final List<double> _boltedX;
   late final List<double> _hopperX;
   late final List<double> _bladeX;
   late final List<double> _stoneX;
   late final List<double> _fireX;
+  late final List<double> _batX;
+  late final List<double> _spiderX;
 
   // Flat hit box edges. The solver calls this hundreds of thousands of times
   // per level, so nothing here allocates.
@@ -86,10 +102,18 @@ class LevelIndex {
   final List<double> _fireLeft = [];
   final List<double> _fireRight = [];
 
+  final List<double> _batLeft = [];
+  final List<double> _batRight = [];
+
+  final List<double> _spiderLeft = [];
+  final List<double> _spiderRight = [];
+
   static const double _reach = kBoltedWidth;
   static const double _hopperInnerSize = kHopperSize - kHitboxShrink * 2;
   static const double _bladeInnerHeight = kBladeHeight - kHitboxShrink * 2;
   static const double _stoneInnerSize = kStoneSize - kHitboxShrink * 2;
+  static const double _batInnerHeight = kBatHeight - kHitboxShrink * 2;
+  static const double _spiderInnerSize = kSpiderSize - kHitboxShrink * 2;
 
   bool hits(RunState state) {
     final left = state.x + kHitboxShrink;
@@ -113,7 +137,9 @@ class LevelIndex {
     if (_hoppers.isEmpty &&
         _blades.isEmpty &&
         _stones.isEmpty &&
-        _fires.isEmpty) {
+        _fires.isEmpty &&
+        _bats.isEmpty &&
+        _spiders.isEmpty) {
       return false;
     }
     final levelTime = state.x / level.runSpeed;
@@ -161,6 +187,27 @@ class LevelIndex {
           ? kCeilingSurfaceY + kHitboxShrink
           : kFloorSurfaceY - kHitboxShrink - height;
       if (top < fireTop + height && fireTop < bottom) return true;
+    }
+
+    // A bat sits in the middle of the band and touches neither surface, so
+    // this can only fire while the character is off a surface.
+    for (var i = _lowerBound(_batX, from);
+        i < _bats.length && _batX[i] <= to;
+        i++) {
+      if (left >= _batRight[i] || _batLeft[i] >= right) continue;
+      final batTop = _bats[i].centreAt(levelTime) -
+          kBatHeight / 2 +
+          kHitboxShrink;
+      if (top < batTop + _batInnerHeight && batTop < bottom) return true;
+    }
+
+    for (var i = _lowerBound(_spiderX, from);
+        i < _spiders.length && _spiderX[i] <= to;
+        i++) {
+      if (left >= _spiderRight[i] || _spiderLeft[i] >= right) continue;
+      final spiderTop =
+          kCeilingSurfaceY + _spiders[i].dropAt(levelTime) + kHitboxShrink;
+      if (top < spiderTop + _spiderInnerSize && spiderTop < bottom) return true;
     }
 
     return false;
@@ -244,20 +291,68 @@ void advance(LevelIndex index, RunState state, [double dt = kFixedStep]) {
 class LevelSimulator {
   LevelSimulator(LevelModel level)
       : index = LevelIndex(level),
-        state = RunState();
+        state = RunState() {
+    _taken = List<bool>.filled(this.level.coins.length, false);
+  }
 
   final LevelIndex index;
   RunState state;
 
+  /// Which coins have been picked up, by index into `level.coins`.
+  ///
+  /// Held here rather than on [RunState] so that copying a state stays cheap.
+  late List<bool> _taken;
+
+  /// Coins collected since the last step, for the scene to animate. Cleared
+  /// every step, so the caller reads it immediately or not at all.
+  final List<int> justCollected = [];
+
   LevelModel get level => index.level;
+
+  bool isCollected(int coin) => _taken[coin];
 
   void restart({int lives = kStartingLives}) {
     state = RunState(lives: lives);
+    _taken.fillRange(0, _taken.length, false);
+    justCollected.clear();
   }
 
   void input(RunInput input) => applyInput(state, input);
 
-  void step([double dt = kFixedStep]) => advance(index, state, dt);
+  void step([double dt = kFixedStep]) {
+    justCollected.clear();
+    advance(index, state, dt);
+    _collect();
+  }
+
+  /// Picks up any coin the character is touching.
+  ///
+  /// Runs after the step rather than inside [advance], because the solver
+  /// drives [advance] directly and coins neither block nor kill — they must
+  /// not cost anything in the search.
+  void _collect() {
+    if (level.coins.isEmpty || !state.isRunning) return;
+    final coins = level.coins;
+    final left = state.x;
+    final right = state.x + kPlayerSize;
+
+    for (var i = 0; i < coins.length; i++) {
+      if (_taken[i]) continue;
+      final coin = coins[i];
+      // Coins are sorted by x, so once one is beyond reach so is the rest.
+      if (coin.x - kCoinSize > right) break;
+      if (coin.x + kCoinSize < left) continue;
+
+      // Grown rather than shrunk: a generous reward box feels good, where a
+      // generous lethal one would feel unfair.
+      final box = coin.box.deflate(-kCoinReach);
+      if (state.box.overlaps(box)) {
+        _taken[i] = true;
+        state.coins++;
+        justCollected.add(i);
+      }
+    }
+  }
 
   /// True when the death being handled is the last life.
   bool get outOfLives => state.lives <= 1;
@@ -267,17 +362,33 @@ class LevelSimulator {
   void respawn() {
     final remaining = state.lives - 1;
     final elapsed = state.elapsed;
+    justCollected.clear();
+
     if (remaining <= 0) {
+      _taken.fillRange(0, _taken.length, false);
       state = RunState(elapsed: elapsed);
-    } else {
-      final checkpoint = level.checkpointBehind(state.x);
-      state = RunState(
-        x: checkpoint,
-        lives: remaining,
-        elapsed: elapsed,
-        checkpointX: checkpoint,
-      );
+      return;
     }
+
+    final checkpoint = level.checkpointBehind(state.x);
+    // Coins past the checkpoint go back, since that stretch is about to be
+    // run again. Everything already banked behind it stays banked.
+    var kept = 0;
+    for (var i = 0; i < _taken.length; i++) {
+      if (level.coins[i].x >= checkpoint) {
+        _taken[i] = false;
+      } else if (_taken[i]) {
+        kept++;
+      }
+    }
+
+    state = RunState(
+      x: checkpoint,
+      lives: remaining,
+      elapsed: elapsed,
+      checkpointX: checkpoint,
+      coins: kept,
+    );
   }
 }
 
@@ -419,9 +530,14 @@ class LevelValidation {
   bool get ok => problems.isEmpty;
 
   @override
-  String toString() => ok
-      ? 'Level ${level.id}: ok (${plan!.actions} inputs)'
-      : 'Level ${level.id}: ${problems.join('; ')}';
+  String toString() {
+    if (!ok) return 'Level ${level.id}: ${problems.join('; ')}';
+    final found = plan;
+    // There is no plan when the level was checked without solving.
+    return found == null
+        ? 'Level ${level.id}: ok'
+        : 'Level ${level.id}: ok (${found.actions} inputs)';
+  }
 }
 
 /// Bolted enemies this close to the start or the door are unfair.
@@ -449,6 +565,31 @@ const double kMinFireDarkTime = 0.9;
 /// Two fires facing each other closer than this could both be lit as the
 /// character arrives, which closes the band with no way through.
 const double kOppositeFireGap = 260;
+
+/// A bat needs room at the start and the door, because the character has to
+/// already be on the right surface by the time it arrives.
+const double kBatClearance = 200;
+
+/// How much clear track a bat needs either side of any other obstacle.
+///
+/// This is the rule that makes bats fair. Inside a bat's span the character
+/// can neither flip nor jump, so anything that *demands* a flip or a jump in
+/// the same breath is impossible rather than hard. A flip takes about 0.27
+/// seconds, which is 55 units at base speed, so this leaves room to commit
+/// before the bat and to recover after it.
+const double kBatCommitGap = 130;
+
+/// A spider sweeps the ceiling on the way down and again on the way up, so its
+/// period has to leave the ceiling open for at least this long in between.
+/// Without it the ceiling is never usable and the spider is just a wall.
+const double kMinSpiderClearTime = 0.8;
+
+const double kSpiderClearance = 200;
+
+/// No two obstacles of any kind may be closer than this. At base speed 60
+/// units is under a third of a second, which is not a decision, it is a
+/// coin toss.
+const double kMinObstacleGap = 60;
 
 /// The longest empty stretch allowed once a level is under way. At base speed
 /// this is 3.5 seconds of holding still, which is already the edge of dead
@@ -495,7 +636,14 @@ List<String> pacingProblems(LevelModel level) {
   return problems;
 }
 
-LevelValidation validateLevel(LevelModel level) {
+/// Checks [level] against every rule in CLAUDE.md.
+///
+/// With [solve] left on it also searches for an input sequence that finishes
+/// the level, which is the only part that costs real time. Turn it off to
+/// check the cheap structural rules over a whole pack — the exhaustive solve
+/// belongs in `tool/generate_levels.dart`, which runs it across isolates at
+/// authoring time.
+LevelValidation validateLevel(LevelModel level, {bool solve = true}) {
   final problems = <String>[];
 
   final expectedLength = level.runSpeed * kLevelSeconds;
@@ -598,6 +746,56 @@ LevelValidation validateLevel(LevelModel level) {
     }
   }
 
+  for (final bat in level.bats) {
+    if (bat.x <= kBatClearance || bat.x >= level.length - kBatClearance) {
+      problems.add('bat at ${bat.x} is inside a clearance');
+    }
+    if (bat.period <= 0) {
+      problems.add('bat period ${bat.period} is not positive');
+    }
+    if (bat.phase < 0 || bat.phase >= bat.period) {
+      problems.add('bat phase ${bat.phase} is outside 0 to ${bat.period}');
+    }
+  }
+
+  // A bat closes the air, so nothing may sit close enough to force the
+  // character off a surface while it is passing one.
+  for (final bat in level.bats) {
+    for (final x in level.obstacleXs) {
+      if (x == bat.x) continue;
+      final gap = (x - bat.x).abs();
+      if (gap < kBatCommitGap) {
+        problems.add('bat at ${bat.x} is ${gap.toStringAsFixed(0)} from the '
+            'obstacle at $x, closer than the $kBatCommitGap a flip needs');
+      }
+    }
+  }
+
+  for (final spider in level.spiders) {
+    if (spider.x <= kSpiderClearance ||
+        spider.x >= level.length - kSpiderClearance) {
+      problems.add('spider at ${spider.x} is inside a clearance');
+    }
+    if (spider.period <= kSpiderCycleTime + kMinSpiderClearTime) {
+      problems.add('spider period ${spider.period} leaves less than '
+          '${kMinSpiderClearTime}s with the ceiling open');
+    }
+    if (spider.phase < 0 || spider.phase >= spider.period) {
+      problems.add('spider phase ${spider.phase} is outside 0 to '
+          '${spider.period}');
+    }
+  }
+
+  final xs = level.obstacleXs;
+  for (var i = 1; i < xs.length; i++) {
+    final gap = xs[i] - xs[i - 1];
+    if (gap < kMinObstacleGap) {
+      problems.add('obstacles at ${xs[i - 1]} and ${xs[i]} are only '
+          '${gap.toStringAsFixed(0)} apart, under the $kMinObstacleGap '
+          'minimum');
+    }
+  }
+
   problems.addAll(pacingProblems(level));
 
   var previous = 0.0;
@@ -609,7 +807,7 @@ LevelValidation validateLevel(LevelModel level) {
   }
 
   RunPlan? plan;
-  if (problems.isEmpty) {
+  if (solve && problems.isEmpty) {
     plan = solveLevel(level);
     if (plan == null) {
       problems.add('no input sequence finishes this level');
