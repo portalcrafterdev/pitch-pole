@@ -40,7 +40,11 @@ class Palette {
   /// hazy and blue rather than green, which is how distance actually reads and
   /// keeps the greens of the coins and the finish line to themselves.
   static const Color canopy = Color(0xFF2C6238);
-  static const Color canopyFar = Color(0xFF86B2C4);
+
+  /// Only a little lighter than the band it sits in. Anything brighter reads
+  /// as a foreground object, and worse, lands in the same pale family as the
+  /// steel blade — which then gets lost against it.
+  static const Color canopyFar = Color(0xFF5C8A7C);
   static const Color canopyMid = Color(0xFF3C7A4E);
   static const Color trunk = Color(0xFF4A3626);
 
@@ -107,14 +111,17 @@ class Palette {
   /// must not read as part of the threat.
   static const Color thread = Color(0xFF6E7A72);
 
-  /// Coins. Deliberately in the finish line's family rather than gold: green
-  /// already means "this is good" in this game, and a gold coin would sit
-  /// within a shade of [hopper], which is a thing that kills you. Colour is
-  /// how the player tells safe from lethal at speed, so it cannot be spent on
-  /// looking like a coin usually looks.
-  static const Color coin = Color(0xFF7CF0C0);
-  static const Color coinCore = Color(0xFFE6FFF4);
-  static const Color coinEdge = Color(0xFF2FA97A);
+  /// Coins. Gold, which is the one hue in the game that is deliberately close
+  /// to something lethal — [hopper] is amber, and these are only a step away.
+  ///
+  /// Two things keep them apart. The gold is lighter and yellower than the
+  /// hopper's amber, and the coin carries a dark bronze rim that nothing in
+  /// the cast has, so it reads as a metal disc rather than as a small enemy.
+  /// A hopper is also five times the area, bounces off a surface, and has a
+  /// face.
+  static const Color coin = Color(0xFFFFCE3F);
+  static const Color coinCore = Color(0xFFFFF6D2);
+  static const Color coinEdge = Color(0xFF8A5A12);
 
   /// The finish line and the accent for anything that means "you are through".
   /// Far brighter than any leaf, so it never gets lost in the forest.

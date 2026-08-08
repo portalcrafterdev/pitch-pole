@@ -95,10 +95,13 @@ class PitchpoleGame extends FlameGame {
   static const double kWinPause = DoorComponent.burstDuration;
 
   /// The letterbox bars, which sit above and below the 560 by 220 canvas on
-  /// most phones. Sky, so they read as more of the same world rather than as
-  /// black bars.
+  /// most phones.
+  ///
+  /// Kept dark rather than sky coloured. Sky reads well enough above the
+  /// canopy but the same colour below the earth looks like water under the
+  /// ground, and one colour has to serve both ends.
   @override
-  Color backgroundColor() => Palette.skyHigh;
+  Color backgroundColor() => Palette.background;
 
   @override
   Future<void> onLoad() async {

@@ -34,9 +34,16 @@ class CoinPickup extends PositionComponent {
 
   final Paint _face = Paint();
   final Paint _core = Paint();
+
+  /// A soft halo behind the disc. The world is a mid green now, and a 14 unit
+  /// coin going past at speed needs more than hue to be seen against foliage.
+  final Paint _halo = Paint()
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+  /// The rim. Heavier than a hairline on purpose: it is what separates a coin
+  /// from the amber hopper at a glance.
   final Paint _edge = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.4;
+    ..strokeWidth = 2;
   final Paint _burst = Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.6;
@@ -81,6 +88,9 @@ class CoinPickup extends PositionComponent {
     final turn = cos(_spin);
     final halfWidth = (size.x / 2) * turn.abs().clamp(0.18, 1.0);
     final radius = size.y / 2;
+
+    _halo.color = Palette.coin.withValues(alpha: 0.30 + 0.16 * turn.abs());
+    canvas.drawCircle(centre, radius * 1.15, _halo);
 
     final face = Rect.fromCenter(
       center: centre,

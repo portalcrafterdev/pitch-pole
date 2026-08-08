@@ -151,7 +151,7 @@ const double kSpiderCycleTime =
 /// is *grown* rather than shrunk. The 3 unit shrink on everything else exists
 /// because a generous lethal box feels unfair; a generous reward box feels
 /// good, so the rule is inverted here on purpose.
-const double kCoinSize = 14;
+const double kCoinSize = 18;
 const double kCoinReach = 3;
 
 /// Cosmetic only. Never part of the hit box.
