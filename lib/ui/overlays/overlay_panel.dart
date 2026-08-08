@@ -11,6 +11,7 @@ class OverlayPanel extends StatelessWidget {
     this.subtitle,
     this.child,
     required this.actions,
+    this.onDismiss,
   });
 
   final String title;
@@ -19,9 +20,18 @@ class OverlayPanel extends StatelessWidget {
   final Widget? child;
   final List<Widget> actions;
 
+  /// What tapping the screen around the panel does, if anything.
+  ///
+  /// Only the pause menu sets this. Losing a life or finishing a level is a
+  /// thing that happened to the player and has to be acknowledged, so those
+  /// two panels are deliberately not dismissible: there is nothing to go back
+  /// to behind them, and a stray tap on a dead screen should not choose
+  /// between retry and quit on the player's behalf.
+  final VoidCallback? onDismiss;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final scrim = Container(
       color: Palette.background.withValues(alpha: 0.88),
       child: Center(
         child: SingleChildScrollView(
@@ -36,52 +46,72 @@ class OverlayPanel extends StatelessWidget {
                 child: child,
               ),
             ),
-            child: Container(
-              margin: const EdgeInsets.all(28),
-              padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
-              constraints: const BoxConstraints(maxWidth: 380),
-              decoration: BoxDecoration(
-                color: Palette.surface,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: accent.withValues(alpha: 0.22)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title.toUpperCase(),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 22,
-                      letterSpacing: 3,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 8),
+            // Swallows taps that land on the panel itself, so only the screen
+            // around it dismisses. The buttons still work: of two tap
+            // recognizers over the same pixel the innermost one takes the
+            // gesture, and every button is deeper than this.
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {},
+              child: Container(
+                margin: const EdgeInsets.all(28),
+                padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
+                constraints: const BoxConstraints(maxWidth: 380),
+                decoration: BoxDecoration(
+                  color: Palette.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: accent.withValues(alpha: 0.22)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      subtitle!,
+                      title.toUpperCase(),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Palette.textMuted,
-                        fontSize: 14,
-                        height: 1.4,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 22,
+                        letterSpacing: 3,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        subtitle!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Palette.textMuted,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    if (child != null) ...[
+                      const SizedBox(height: 20),
+                      child!,
+                    ],
+                    const SizedBox(height: 24),
+                    ...actions,
                   ],
-                  if (child != null) ...[
-                    const SizedBox(height: 20),
-                    child!,
-                  ],
-                  const SizedBox(height: 24),
-                  ...actions,
-                ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+
+    if (onDismiss == null) return scrim;
+
+    return GestureDetector(
+      // Opaque, so the tap is consumed here rather than falling through to the
+      // touch controls underneath. With the halves scheme the whole screen is
+      // a control, and a tap that both resumed the run and flipped gravity
+      // would drop the player through the floor the instant they came back.
+      behavior: HitTestBehavior.opaque,
+      onTap: onDismiss,
+      child: scrim,
     );
   }
 }

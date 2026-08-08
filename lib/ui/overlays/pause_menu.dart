@@ -29,6 +29,10 @@ class PauseMenu extends StatelessWidget {
       title: 'Paused',
       subtitle: 'Level $levelId, ${seconds.toStringAsFixed(0)} seconds of '
           'running.',
+      // Tapping the screen around the panel resumes, the same as the button.
+      // Pausing is the one overlay the player opened on purpose and can leave
+      // again unchanged, so it is the only one that closes this way.
+      onDismiss: onResume,
       actions: [
         PanelButton(
           label: 'RESUME',
