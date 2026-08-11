@@ -9,10 +9,24 @@ String _ascii(ByteData data, int offset, int length) => String.fromCharCodes([
     ]);
 
 void main() {
-  test('every sound the game asks for exists', () {
-    expect(Sfx.all, ['land.wav', 'flip.wav', 'jump.wav', 'death.wav']);
+  // The music tests reach a platform channel. Without a binding that call
+  // never gets a reply at all and the test hangs instead of failing; with one
+  // it comes straight back as unimplemented, which is the path a phone with
+  // no working audio takes too.
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    for (final name in Sfx.all) {
+  setUp(() async {
+    // The background player is one object for the whole app, so ownership of
+    // it outlives a test unless it is handed back.
+    final owner = SoundPlayer.debugMusicOwner;
+    if (owner is SoundPlayer) await owner.stopMusic();
+  });
+
+  test('every sound the game asks for exists', () {
+    expect(Sfx.all,
+        ['land.wav', 'flip.wav', 'jump.wav', 'death.wav', 'win.wav']);
+
+    for (final name in [...Sfx.all, Music.loop]) {
       expect(File('assets/audio/$name').existsSync(), isTrue,
           reason: 'missing assets/audio/$name, run tool/make_sounds.dart');
     }
@@ -37,6 +51,29 @@ void main() {
     }
   });
 
+  test('every file is written loud enough to hear on a phone speaker', () {
+    // The generators each had their own hand tuned output multiplier, which
+    // left the music peaking more than five times below full scale. Playback
+    // volume cannot rescue that: it is a multiplier, and a fraction of very
+    // little is still very little. Every file is normalised now, so the
+    // balance is set in Mix and nowhere else.
+    for (final name in [...Sfx.all, Music.loop]) {
+      final data =
+          ByteData.sublistView(File('assets/audio/$name').readAsBytesSync());
+      final samples = data.getUint32(40, Endian.little) ~/ 2;
+
+      var loudest = 0;
+      for (var i = 0; i < samples; i++) {
+        final level = data.getInt16(44 + i * 2, Endian.little).abs();
+        if (level > loudest) loudest = level;
+      }
+
+      expect(loudest / 32767, closeTo(0.92, 0.01),
+          reason: '$name peaks at ${(loudest / 32767 * 100).round()}% of full '
+              'scale, run tool/make_sounds.dart');
+    }
+  });
+
   test('the sounds are short enough to fire on every press', () {
     for (final name in Sfx.all) {
       final data = ByteData.sublistView(File('assets/audio/$name').readAsBytesSync());
@@ -45,6 +82,59 @@ void main() {
 
       expect(millis, lessThan(500), reason: '$name runs $millis ms, too long');
     }
+  });
+
+  test('the music loop is a whole number of seconds of playable audio', () {
+    // It plays end to end forever, so a wrong header here is not a glitch,
+    // it is a click every eight seconds for the length of the run.
+    final data =
+        ByteData.sublistView(File('assets/audio/${Music.loop}').readAsBytesSync());
+
+    expect(_ascii(data, 0, 4), 'RIFF');
+    expect(data.getUint16(22, Endian.little), 1, reason: 'not mono');
+    final rate = data.getUint32(24, Endian.little);
+    final seconds = data.getUint32(40, Endian.little) / 2 / rate;
+
+    expect(seconds, closeTo(8, 0.01),
+        reason: 'CLAUDE.md asks for an eight second loop');
+  });
+
+  group('the background loop survives a level change', () {
+    // There is one background player for the whole app but a SoundPlayer per
+    // level, and moving to the next level starts the new level's music before
+    // the old level has finished tearing itself down. Ownership is what stops
+    // the outgoing level silencing the incoming one.
+    //
+    // No audio plugin exists under `flutter test`, so the play itself fails
+    // and is swallowed. Ownership is claimed before that happens, which is
+    // exactly the part being checked.
+    test('the level being left behind does not stop it', () async {
+      final leaving = SoundPlayer(enabled: false, musicEnabled: true);
+      final arriving = SoundPlayer(enabled: false, musicEnabled: true);
+
+      await leaving.startMusic();
+      expect(SoundPlayer.debugMusicOwner, same(leaving));
+
+      await arriving.startMusic();
+      expect(SoundPlayer.debugMusicOwner, same(arriving),
+          reason: 'the level starting up takes the music over');
+
+      await leaving.stopMusic();
+      expect(SoundPlayer.debugMusicOwner, same(arriving),
+          reason: 'this is the bug: the outgoing level tidying up must not '
+              'silence the level that just started');
+
+      await arriving.stopMusic();
+      expect(SoundPlayer.debugMusicOwner, isNull,
+          reason: 'but the owner still stops it on the way out');
+    });
+
+    test('music off never claims it', () async {
+      final silent = SoundPlayer(enabled: true, musicEnabled: false);
+      await silent.startMusic();
+
+      expect(SoundPlayer.debugMusicOwner, isNull);
+    });
   });
 
   test('the audio folder is declared in pubspec', () {

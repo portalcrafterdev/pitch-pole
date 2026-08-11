@@ -20,7 +20,10 @@ class Sfx {
   /// A dull thump on death.
   static const String death = 'death.wav';
 
-  static const List<String> all = [land, flip, jump, death];
+  /// A short rise on reaching the door.
+  static const String win = 'win.wav';
+
+  static const List<String> all = [land, flip, jump, death, win];
 }
 
 /// The background bed, so a quiet stretch of track is never silent. One loop,
@@ -29,6 +32,40 @@ class Music {
   const Music._();
 
   static const String loop = 'music.wav';
+}
+
+/// How loud each sound is against the others.
+///
+/// Every file is written at the same peak by `tool/make_sounds.dart`, so these
+/// are the whole mix and nothing else affects it. That is deliberate: the
+/// balance used to be split between a multiplier buried in each synth function
+/// and a volume at each call site, which meant nobody could see it.
+///
+/// What the numbers are protecting: the sounds that fire constantly — the
+/// click of a jump, the thud of a landing, the tick of a coin — sit well under
+/// the ones that happen once, or a long level becomes a rattle. The two that
+/// are allowed to be loud are the two that end a run.
+class Mix {
+  const Mix._();
+
+  /// The signature mechanic, but a whoosh rather than a hit.
+  static const double flip = 0.85;
+
+  /// Both fire many times a level.
+  static const double jump = 0.55;
+  static const double land = 0.6;
+
+  /// A light tick under everything: there are up to forty coins in a level.
+  static const double coin = 0.3;
+
+  /// The two that end a run.
+  static const double death = 1;
+  static const double win = 0.95;
+
+  /// Under all of it. Quiet by design, but no longer inaudible: the file it
+  /// scales used to be more than five times below full scale, so this being
+  /// low was never what made the music hard to hear.
+  static const double music = 0.4;
 }
 
 /// Fire and forget sound. Every call is guarded, because a missing or
@@ -65,7 +102,23 @@ class SoundPlayer {
   /// In flight warm up, so two callers never build the pools twice.
   static Future<void>? _warming;
 
-  static bool _bgmReady = false;
+  /// In flight initialisation of the background player, shared the same way
+  /// [_warming] is, so two levels starting at once configure it once.
+  static Future<void>? _bgmInit;
+
+  /// There is one background player for the whole app, but [SoundPlayer] is
+  /// built per level. Whichever level started the music owns it, and is the
+  /// only one allowed to stop it.
+  ///
+  /// Without this the music dies on the first level change. Moving to the
+  /// next level replaces the route, so the incoming level's `onLoad` starts
+  /// the music and *then* the outgoing level's `onRemove` stops it — leaving
+  /// every level after the first one silent for the rest of the session.
+  static Object? _musicOwner;
+
+  /// Whether the loop is already running, so a level change lets it play on
+  /// rather than restarting it eight seconds from the top.
+  static bool _musicPlaying = false;
 
   /// Builds every sound pool. Safe to call as often as you like: the work
   /// happens once. Call it at start up so the first jump of the first level
@@ -122,23 +175,45 @@ class SoundPlayer {
     }
   }
 
-  /// Starts the loop from the top. Quiet, because it plays under everything.
-  Future<void> startMusic({double volume = 0.32}) async {
+  /// Starts the loop, or leaves it running if a previous level already did.
+  Future<void> startMusic({double volume = Mix.music}) async {
     if (!musicEnabled) return;
+
+    // Claimed before the first await, so an outgoing level that stops the
+    // music a moment from now finds it already belongs to this one.
+    _musicOwner = this;
+
     try {
-      if (!_bgmReady) {
-        FlameAudio.bgm.initialize();
-        _bgmReady = true;
-      }
-      await FlameAudio.bgm.stop();
+      // Awaited, unlike before. This sets the player's audio context, and
+      // letting it race with the play below is enough on its own to leave the
+      // player configured but silent.
+      await (_bgmInit ??= FlameAudio.bgm.initialize());
+
+      // Something else claimed the music while that was in flight.
+      if (!identical(_musicOwner, this)) return;
+      if (_musicPlaying) return;
+
+      _musicPlaying = true;
       await FlameAudio.bgm.play(Music.loop, volume: volume);
     } catch (error) {
+      _musicPlaying = false;
+      // Dropped rather than kept, so a failure here is not cached for the rest
+      // of the session and the next level gets to try again.
+      _bgmInit = null;
       debugPrint('Pitchpole: music unavailable, playing silent ($error)');
     }
   }
 
+  /// Which [SoundPlayer] currently owns the background loop, or null if
+  /// nothing does.
+  @visibleForTesting
+  static Object? get debugMusicOwner => _musicOwner;
+
+  /// Stops the loop, but only on behalf of the level that started it.
   Future<void> stopMusic() async {
-    if (!_bgmReady) return;
+    if (!identical(_musicOwner, this)) return;
+    _musicOwner = null;
+    _musicPlaying = false;
     try {
       await FlameAudio.bgm.stop();
     } catch (_) {

@@ -94,12 +94,13 @@ class PitchpoleGame extends FlameGame {
   /// Ending a run should be a moment, not a cut.
   static const double kWinPause = DoorComponent.burstDuration;
 
-  /// The letterbox bars, which sit above and below the 560 by 220 canvas on
-  /// most phones.
+  /// Behind the canvas, which is only ever seen for the instant before the
+  /// first frame is drawn.
   ///
-  /// Kept dark rather than sky coloured. Sky reads well enough above the
-  /// canopy but the same colour below the earth looks like water under the
-  /// ground, and one colour has to serve both ends.
+  /// The letterbox above and below the canvas is not this: it is painted by
+  /// `_Letterbox` in `game_screen.dart`, which continues the sky at the top
+  /// and the soil at the bottom. One colour could never have done that job —
+  /// sky reads fine above the canopy and like water below the earth.
   @override
   Color backgroundColor() => Palette.background;
 
@@ -207,7 +208,7 @@ class PitchpoleGame extends FlameGame {
         if (sim.justCollected.isNotEmpty) _onCoinsCollected();
         if (wasAirborne && sim.state.grounded && sim.state.isRunning) {
           _player.onLand();
-          _sound.play(Sfx.land, volume: 0.7);
+          _sound.play(Sfx.land, volume: Mix.land);
         }
         if (!sim.state.isRunning) _onRunEnded();
       }
@@ -225,10 +226,10 @@ class PitchpoleGame extends FlameGame {
       sim.input(input);
       if (input == RunInput.jump && grounded) {
         _player.onJump();
-        _sound.play(Sfx.jump, volume: 0.8);
+        _sound.play(Sfx.jump, volume: Mix.jump);
       } else if (sim.state.gravityUp != before) {
         _player.onFlip(toCeiling: sim.state.gravityUp);
-        _sound.play(Sfx.flip);
+        _sound.play(Sfx.flip, volume: Mix.flip);
         _haptic(HapticFeedback.selectionClick);
       }
     }
@@ -241,12 +242,12 @@ class PitchpoleGame extends FlameGame {
     for (final i in sim.justCollected) {
       _coins[i].collect();
     }
-    _sound.play(Sfx.jump, volume: 0.35);
+    _sound.play(Sfx.jump, volume: Mix.coin);
   }
 
   void _onRunEnded() {
     if (sim.state.status == RunStatus.won) {
-      _sound.play(Sfx.land, volume: 0.9);
+      _sound.play(Sfx.win, volume: Mix.win);
       _haptic(HapticFeedback.lightImpact);
       _inputLocked = true;
       _door.celebrate();
@@ -255,7 +256,7 @@ class PitchpoleGame extends FlameGame {
       return;
     }
 
-    _sound.play(Sfx.death);
+    _sound.play(Sfx.death, volume: Mix.death);
     _haptic(HapticFeedback.heavyImpact);
     _player.onDeath();
     _shakeCamera();

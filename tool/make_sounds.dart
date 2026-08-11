@@ -19,6 +19,7 @@ void main() {
   _write('${dir.path}/flip.wav', _whoosh());
   _write('${dir.path}/land.wav', _land());
   _write('${dir.path}/death.wav', _death());
+  _write('${dir.path}/win.wav', _win());
   _write('${dir.path}/music.wav', _music(), loop: true);
 
   for (final stale in ['click.wav']) {
@@ -102,6 +103,38 @@ List<double> _death() {
   return out;
 }
 
+/// The door. Three bell notes climbing, staggered so they pile into a chord
+/// rather than sounding one at a time.
+///
+/// It is a rise, not a fanfare. The reward for finishing a level is the next
+/// level, and there are fifteen hundred of them: a sound that celebrates hard
+/// is unbearable by the fiftieth. It sits on the C of the music bed's A minor,
+/// so it lands in key over whatever the loop happens to be playing.
+List<double> _win() {
+  const seconds = 0.42;
+  const notes = <double>[523.25, 659.25, 880.00]; // C5, E5, A5
+  const stagger = 0.075;
+
+  final n = (sampleRate * seconds).round();
+  final out = List<double>.filled(n, 0);
+
+  for (var note = 0; note < notes.length; note++) {
+    final start = (sampleRate * stagger * note).round();
+    final hz = notes[note];
+    for (var i = start; i < n; i++) {
+      final t = (i - start) / sampleRate;
+      // Struck, not blown: immediate attack, then a bell's long fall.
+      final env = exp(-t * 7.5) * (1 - exp(-t * 400));
+      out[i] += (sin(2 * pi * hz * t) * 0.6 +
+              sin(2 * pi * hz * 2 * t) * 0.12 +
+              sin(2 * pi * hz * 3 * t) * 0.05) *
+          env *
+          0.30;
+    }
+  }
+  return out;
+}
+
 /// A slow, dark bed for the background. Four bars of A minor at 120 BPM, so it
 /// comes round every 8 seconds. It has no melody on purpose: it fills the
 /// quiet stretches without pulling attention off the obstacles.
@@ -155,7 +188,18 @@ double _loopLocked(double hz, double seconds) =>
 
 /// [loop] keeps the tail intact and instead crossfades the seam, so the file
 /// can be played end to end forever without a gap or a click.
-void _write(String path, List<double> samples, {bool loop = false}) {
+void _write(
+  String path,
+  List<double> samples, {
+  bool loop = false,
+  double peak = 0.92,
+}) {
+  // Before anything else, because every synth function above was written by
+  // ear with a hand picked output multiplier and they do not agree with each
+  // other. Normalising here is what stops the mix being decided by whichever
+  // number happened to get typed into each generator.
+  final gain = _normalise(samples, peak);
+
   if (loop) {
     _seamFade(samples);
   } else {
@@ -188,7 +232,31 @@ void _write(String path, List<double> samples, {bool loop = false}) {
   File(path).writeAsBytesSync(out.buffer.asUint8List());
   stdout.writeln('$path  ${samples.length} samples  '
       '${(samples.length / sampleRate * 1000).round()} ms  '
-      '${headerBytes + dataBytes} bytes');
+      '${headerBytes + dataBytes} bytes  '
+      'x${gain.toStringAsFixed(2)}');
+}
+
+/// Scales [samples] so the loudest one lands exactly on [peak].
+///
+/// A phone speaker is small and the game is played in a room with other noise
+/// in it, so a file that peaks at a third of full scale is inaudible however
+/// high the playback volume is set — the volume is a multiplier, and a third
+/// of not very much is still not very much. Every file leaves the same
+/// headroom, and the balance between them is then set once, in [SoundPlayer],
+/// where it can be read in one place.
+double _normalise(List<double> samples, double peak) {
+  var loudest = 0.0;
+  for (final sample in samples) {
+    final level = sample.abs();
+    if (level > loudest) loudest = level;
+  }
+  if (loudest == 0) return 1;
+
+  final gain = peak / loudest;
+  for (var i = 0; i < samples.length; i++) {
+    samples[i] *= gain;
+  }
+  return gain;
 }
 
 /// Crossfades the head of a loop into its own tail, so playing the file back
