@@ -6,6 +6,7 @@ import '../../data/level_repository.dart';
 import '../../data/progress_store.dart';
 import '../../game/logic/level_model.dart';
 import '../palette.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/star_row.dart';
 import 'game_screen.dart';
 
@@ -116,6 +117,9 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
           ),
         ],
       ),
+      // Browsing, not playing: nothing here is timed and nothing is a
+      // control, so it is the one screen a banner belongs on.
+      bottomNavigationBar: const AdBanner(),
       body: FutureBuilder<List<LevelModel>>(
         future: levelRepository.loadAll(),
         builder: (context, snapshot) {

@@ -52,10 +52,17 @@ class PauseMenu extends StatelessWidget {
           onPressed: onLevels,
         ),
       ],
-      // The scheme is worth changing here rather than only back on the home
-      // screen: you find out which one suits you while you are running, not
-      // from a menu. Resuming picks it up immediately.
-      child: const _ControlSchemeToggle(),
+      // The scheme and the audio are worth changing here rather than only
+      // back on the home screen: you find out what suits you while you are
+      // running, not from a menu. Resuming picks both up immediately.
+      child: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ControlSchemeToggle(),
+          SizedBox(height: 16),
+          _AudioToggles(),
+        ],
+      ),
     );
   }
 }
@@ -94,6 +101,124 @@ class _ControlSchemeToggle extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Sound and music, each on its own switch.
+///
+/// Two switches rather than one, because they are turned off for different
+/// reasons: the music goes off because you want your own, and the effects go
+/// off because you are somewhere you cannot make a noise. Either one alone is
+/// a common thing to want.
+class _AudioToggles extends StatelessWidget {
+  const _AudioToggles();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: progressStore,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'AUDIO',
+            style: TextStyle(
+              color: Palette.textMuted,
+              fontSize: 10,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _AudioChip(
+                  label: 'SOUND',
+                  onIcon: Icons.volume_up_rounded,
+                  offIcon: Icons.volume_off_rounded,
+                  on: progressStore.soundEnabled,
+                  onTap: () => progressStore.setSound(
+                    !progressStore.soundEnabled,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _AudioChip(
+                  label: 'MUSIC',
+                  onIcon: Icons.music_note_rounded,
+                  offIcon: Icons.music_off_rounded,
+                  on: progressStore.musicEnabled,
+                  onTap: () => progressStore.setMusic(
+                    !progressStore.musicEnabled,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudioChip extends StatelessWidget {
+  const _AudioChip({
+    required this.label,
+    required this.onIcon,
+    required this.offIcon,
+    required this.on,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData onIcon;
+  final IconData offIcon;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: on ? Palette.door.withValues(alpha: 0.16) : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Palette.door.withValues(alpha: on ? 0.55 : 0.16),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                on ? onIcon : offIcon,
+                size: 15,
+                color: on ? Palette.door : Palette.textMuted,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: on ? Palette.door : Palette.textMuted,
+                  fontSize: 12,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

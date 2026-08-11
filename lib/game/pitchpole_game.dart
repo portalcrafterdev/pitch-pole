@@ -34,6 +34,7 @@ class PitchpoleGame extends FlameGame {
     required LevelModel level,
     required this.onWin,
     required this.onRunOut,
+    this.onLifeLost,
     this.hapticsEnabled = true,
     bool soundEnabled = true,
     bool musicEnabled = true,
@@ -56,6 +57,14 @@ class PitchpoleGame extends FlameGame {
 
   /// The last life went and the level restarted from the beginning.
   final VoidCallback onRunOut;
+
+  /// A life went, but not the last one.
+  ///
+  /// The respawn waits on whatever this returns, which is what lets an ad sit
+  /// between the death and the checkpoint. Null means respawn straight away —
+  /// that is what the tests use, and it is the behaviour to fall back to if
+  /// the ad break is ever taken out again.
+  final Future<void> Function()? onLifeLost;
 
   final bool hapticsEnabled;
   final SoundPlayer _sound;
@@ -273,17 +282,71 @@ class PitchpoleGame extends FlameGame {
   }
 
   void _respawn() {
-    final wasLastLife = sim.outOfLives;
+    if (sim.outOfLives) {
+      // Nothing is reset here, on purpose. The extra life a player can earn
+      // continues the run from the last checkpoint, and respawn() on the last
+      // life throws exactly that away by putting the level back to the start.
+      // Whatever happens next decides: [revive] continues, [restart] resets.
+      _inputLocked = true;
+      onRunOut();
+      return;
+    }
+
+    final gate = onLifeLost;
+    if (gate == null) {
+      _completeRespawn();
+      return;
+    }
+
+    // Held here until the screen says go. Input is locked and the run is
+    // already dead, so update() does nothing at all in the meantime — the
+    // character stays where it died rather than the level ticking on behind
+    // whatever is being shown.
+    _inputLocked = true;
+    unawaited(gate().then((_) {
+      if (isMounted) _completeRespawn();
+    }));
+  }
+
+  void _completeRespawn() {
     sim.respawn();
     _syncCoins();
     _player.reset();
     _accumulator = 0;
     _queued.clear();
+    _inputLocked = false;
     camera.viewfinder.position = _cameraTarget();
-    if (wasLastLife) {
-      _inputLocked = true;
-      onRunOut();
+  }
+
+  /// Applies the sound and music switches to the run already in progress.
+  ///
+  /// The player changes these from the pause menu, mid level, and expects to
+  /// hear the result when they resume rather than on the next level.
+  void applyAudioSettings({required bool sound, required bool music}) {
+    if (sound && !_sound.enabled) {
+      // The pools are only built when sound was on at start up, so turning it
+      // on mid run has to warm them or the rest of the level is silent.
+      unawaited(SoundPlayer.warmUp());
     }
+    _sound.enabled = sound;
+
+    if (music == _sound.musicEnabled) return;
+    _sound.musicEnabled = music;
+    unawaited(music ? _sound.startMusic() : _sound.stopMusic());
+  }
+
+  /// An extra life, beyond the three the level starts with. Picks the run up
+  /// at the last checkpoint rather than the beginning.
+  void revive() {
+    sim.revive();
+    _syncCoins();
+    _player.reset();
+    _accumulator = 0;
+    _deathPause = 0;
+    _queued.clear();
+    _inputLocked = false;
+    camera.viewfinder.position = _cameraTarget();
+    _syncScene();
   }
 
   /// Full restart: back to the start of the level with three lives and a

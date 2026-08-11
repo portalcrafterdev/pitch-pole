@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flame/components.dart';
@@ -55,6 +56,7 @@ void main() {
     LevelModel level = _level,
     void Function(int stars, double seconds)? onWin,
     void Function()? onRunOut,
+    Future<void> Function()? onLifeLost,
   }) async {
     final game = PitchpoleGame(
       level: level,
@@ -63,6 +65,7 @@ void main() {
       musicEnabled: false,
       onWin: onWin ?? (_, _) {},
       onRunOut: onRunOut ?? () {},
+      onLifeLost: onLifeLost,
     );
     await tester.pumpWidget(GameWidget(game: game));
     await tester.pump();
@@ -309,6 +312,90 @@ void main() {
     expect(game.sim.state.x, lessThan(2400),
         reason: 'and only the pumped remainder of a second past it');
     expect(game.sim.state.lives, 2);
+  });
+
+  testWidgets('a life lost waits for the break, then respawns', (tester) async {
+    // Stands in for the ad: the respawn must wait for it and then happen.
+    final gate = Completer<void>();
+    final game = await mount(tester, onLifeLost: () => gate.future);
+
+    await play(tester, 13.2);
+    expect(game.sim.state.status, RunStatus.dead);
+
+    await play(tester, PitchpoleGame.kDeathPause + 0.5);
+    expect(game.sim.state.status, RunStatus.dead,
+        reason: 'the run holds still behind the ad rather than ticking on');
+    expect(game.sim.state.lives, 3, reason: 'the life goes on the respawn');
+
+    gate.complete();
+    await play(tester, 0.2);
+
+    expect(game.sim.state.status, RunStatus.running);
+    expect(game.sim.state.lives, 2);
+    expect(game.sim.state.x, greaterThanOrEqualTo(2000),
+        reason: 'and it still comes back at the checkpoint');
+  });
+
+  testWidgets('a break that resolves at once respawns as fast as ever',
+      (tester) async {
+    // The case that matters most: no ad loaded. This must be indistinguishable
+    // from the game before ads existed, or every death gains a stutter.
+    final game = await mount(tester, onLifeLost: () async {});
+
+    await play(tester, 13.2);
+    await play(tester, PitchpoleGame.kDeathPause + 0.2);
+
+    expect(game.sim.state.status, RunStatus.running);
+    expect(game.sim.state.lives, 2);
+  });
+
+  testWidgets('sound and music can be switched during a run', (tester) async {
+    final game = await mount(tester);
+
+    // Nothing here can be heard under `flutter test`; what is being checked is
+    // that flipping them mid level is accepted and does not throw. The bug
+    // this guards is the settings being read once at construction, which left
+    // the pause menu switches doing nothing until the next level.
+    game.applyAudioSettings(sound: false, music: false);
+    await play(tester, 0.5);
+    game.applyAudioSettings(sound: true, music: true);
+    await play(tester, 0.5);
+
+    expect(tester.takeException(), isNull);
+    expect(game.sim.state.isRunning, isTrue);
+  });
+
+  testWidgets('the last life holds the run instead of resetting it',
+      (tester) async {
+    var ranOut = 0;
+    final game = await mount(tester, onRunOut: () => ranOut++);
+
+    // Die on the enemy at 2600 three times over. The third is the last life.
+    for (var life = 0; life < 3; life++) {
+      while (game.sim.state.status != RunStatus.dead) {
+        await play(tester, 0.5);
+      }
+      await play(tester, PitchpoleGame.kDeathPause + 0.2);
+    }
+
+    expect(ranOut, 1);
+    expect(game.sim.state.status, RunStatus.dead,
+        reason: 'the run is over but not thrown away');
+    expect(game.sim.state.x, greaterThan(2000),
+        reason: 'the level used to be reset to the start here, which left the '
+            'extra life nothing to give back');
+
+    // What the ad buys: the same run, one checkpoint back.
+    game.revive();
+
+    expect(game.sim.state.status, RunStatus.running);
+    expect(game.sim.state.lives, 1);
+    expect(game.sim.state.x, 2000,
+        reason: 'picked up at the checkpoint, not the start of the level');
+
+    await play(tester, 1);
+    expect(game.sim.state.x, greaterThan(2000),
+        reason: 'and it is actually running again');
   });
 
   testWidgets('flipping over the enemy survives it', (tester) async {

@@ -370,6 +370,22 @@ class LevelSimulator {
       return;
     }
 
+    _restoreAtCheckpoint(lives: remaining, elapsed: elapsed);
+  }
+
+  /// Puts the character back at the last checkpoint with one life, without
+  /// taking one away.
+  ///
+  /// This is the extra life a player can earn, and it deliberately does not go
+  /// through [respawn]: that counts the death, and on the last life it throws
+  /// the whole run away and starts the level again. What is being bought here
+  /// is precisely the run that would otherwise have been lost.
+  void revive() {
+    justCollected.clear();
+    _restoreAtCheckpoint(lives: 1, elapsed: state.elapsed);
+  }
+
+  void _restoreAtCheckpoint({required int lives, required double elapsed}) {
     final checkpoint = level.checkpointBehind(state.x);
     // Coins past the checkpoint go back, since that stretch is about to be
     // run again. Everything already banked behind it stays banked.
@@ -384,7 +400,7 @@ class LevelSimulator {
 
     state = RunState(
       x: checkpoint,
-      lives: remaining,
+      lives: lives,
       elapsed: elapsed,
       checkpointX: checkpoint,
       coins: kept,

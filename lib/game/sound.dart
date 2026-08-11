@@ -49,7 +49,7 @@ class Mix {
   const Mix._();
 
   /// The signature mechanic, but a whoosh rather than a hit.
-  static const double flip = 0.75;
+  static const double flip = 0.70;
 
   /// Both fire many times a level.
   static const double jump = 0.55;
@@ -84,8 +84,11 @@ class Mix {
 class SoundPlayer {
   SoundPlayer({required this.enabled, this.musicEnabled = false});
 
-  final bool enabled;
-  final bool musicEnabled;
+  /// Both are settable, not fixed at construction. A player changing either
+  /// one from the pause menu expects it to take effect on the run they are in
+  /// the middle of, not on the next level.
+  bool enabled;
+  bool musicEnabled;
 
   /// How many players each effect keeps ready, and the ceiling before spare
   /// players are released instead of pooled.

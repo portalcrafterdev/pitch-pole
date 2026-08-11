@@ -6,20 +6,21 @@
   manifest when the app starts, and a build without it crashes on launch
   rather than merely failing to show an ad.
 
-  The value below is Google's public test app id. It pairs with the test ad
-  units in lib/data/ads.dart and serves placeholder ads to any device, which
-  is what makes the whole thing testable without an account.
+  This is the real app id. Unlike the unit ids in lib/data/ads.dart it is the
+  same in debug and release, and it has to be: the SDK validates it at start
+  up, and a test app id paired with the real units a release build uses would
+  simply serve nothing.
 
-  Before shipping, all three have to change together:
-    1. this id, from AdMob -> your app -> App settings,
-    2. the two ad unit ids in lib/data/ads.dart,
-    3. GADApplicationIdentifier in ios/Runner/Info.plist.
+  That is safe because an app id on its own shows no ads and earns nothing —
+  only a unit id does, and every unit is switched to Google's test inventory
+  by kDebugMode. What must never happen is a debug build pointing at a real
+  unit: Google counts a developer's own impressions as invalid traffic, and
+  that is the usual way an AdMob account gets suspended.
 
-  Mixing them is the expensive mistake. A real app id with test units earns
-  nothing; a test app id with real units serves nothing; and developing
-  against real units is what gets an AdMob account suspended for invalid
-  traffic, because Google counts those impressions as fraud.
+  If the game ships on iOS it needs its own AdMob app, and
+  GADApplicationIdentifier in ios/Runner/Info.plist has to hold that one
+  rather than a copy of this.
 -->
 <resources>
-    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="admob_app_id" translatable="false">ca-app-pub-8244651657160773~5919462505</string>
 </resources>

@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/ads.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
+import 'package:pitchpole/game/logic/level_model.dart';
+import 'package:pitchpole/game/logic/level_simulator.dart';
 import 'package:pitchpole/game/pitchpole_game.dart';
 import 'package:pitchpole/ui/screens/game_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,6 +60,61 @@ void main() {
           reason: 'a level ending while an ad is up must not open a second');
 
       adsController.debugShowing = false;
+      debugDefaultTargetPlatformOverride = null;
+    });
+  });
+
+  group('the extra life', () {
+    test('picks the run up at the checkpoint instead of the start', () async {
+      final levels = await levelRepository.loadAll();
+      // A level long enough to have checkpoints to come back to.
+      final level = levels.firstWhere((l) => l.checkpoints.isNotEmpty);
+
+      final sim = LevelSimulator(level);
+      // Spend two lives, so the next death is the last one.
+      for (var life = 0; life < 2; life++) {
+        while (sim.state.isRunning) {
+          sim.step();
+        }
+        sim.respawn();
+      }
+      while (sim.state.isRunning) {
+        sim.step();
+      }
+
+      expect(sim.outOfLives, isTrue);
+      final diedAt = sim.state.x;
+
+      sim.revive();
+
+      expect(sim.state.lives, 1);
+      expect(sim.state.isRunning, isTrue);
+      expect(sim.state.x, level.checkpointBehind(diedAt),
+          reason: 'the point of paying for a life is keeping the run');
+      expect(sim.state.x, sim.state.checkpointX);
+    });
+
+    test('is a life on top of the three, not one of them', () {
+      final sim = LevelSimulator(
+        const LevelModel(id: 1, length: 1000, runSpeed: 200, hopPeriod: 2),
+      );
+      while (sim.state.isRunning && sim.state.x < 900) {
+        sim.step();
+      }
+
+      // Nothing has died here at all, which is the case that would expose a
+      // revive that quietly decremented instead of granting.
+      sim.revive();
+      expect(sim.state.lives, 1);
+    });
+
+    test('a dismissed ad grants nothing', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+
+      // No ad loaded, so nothing is earned. The caller must not revive.
+      expect(await adsController.showForExtraLife(), isFalse);
+      expect(adsController.canOfferExtraLife, isFalse);
+
       debugDefaultTargetPlatformOverride = null;
     });
   });

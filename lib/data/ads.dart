@@ -3,8 +3,54 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-/// Interstitial ads at the two breaks in a run: before a level starts, and
-/// when the last life goes.
+/// The ad unit ids, real and test.
+///
+/// **A debug build never touches a real unit.** Google counts impressions and
+/// clicks from a developer's own device against the account, and testing on
+/// live units is the single most common way to get an AdMob account suspended
+/// for invalid traffic. Every id below is therefore chosen by [kDebugMode],
+/// which means the thing being run during development is Google's own test
+/// inventory and the thing that ships is the real one. There is no switch to
+/// forget to flip.
+///
+/// The real ids all belong to one AdMob app,
+/// `ca-app-pub-8244651657160773~5919462505`, which is registered for a single
+/// platform. If the game ships on iOS as well it needs a second AdMob app and
+/// a second set of units; the ids here would then have to be chosen by
+/// platform the way the test ones already are.
+class AdUnits {
+  const AdUnits._();
+
+  static const String _testBannerAndroid =
+      'ca-app-pub-3940256099942544/6300978111';
+  static const String _testBannerIos = 'ca-app-pub-3940256099942544/2934735716';
+  static const String _testInterstitialAndroid =
+      'ca-app-pub-3940256099942544/1033173712';
+  static const String _testInterstitialIos =
+      'ca-app-pub-3940256099942544/4411468910';
+  static const String _testRewardedAndroid =
+      'ca-app-pub-3940256099942544/5354046379';
+  static const String _testRewardedIos =
+      'ca-app-pub-3940256099942544/6978759866';
+
+  static bool get _isIos => defaultTargetPlatform == TargetPlatform.iOS;
+
+  static String get banner => kDebugMode
+      ? (_isIos ? _testBannerIos : _testBannerAndroid)
+      : 'ca-app-pub-8244651657160773/6190925241';
+
+  static String get interstitial => kDebugMode
+      ? (_isIos ? _testInterstitialIos : _testInterstitialAndroid)
+      : 'ca-app-pub-8244651657160773/5999353558';
+
+  static String get rewarded => kDebugMode
+      ? (_isIos ? _testRewardedIos : _testRewardedAndroid)
+      : 'ca-app-pub-8244651657160773/3581219560';
+}
+
+/// Every ad in the game: the interstitial at a break, and the rewarded one the
+/// player chooses to watch for an extra life. Banners are separate, because a
+/// banner is a widget rather than something that is shown at a moment.
 ///
 /// The one rule everything here is built around: **an ad may never make the
 /// player wait.** One is shown only if it is already loaded and sitting ready;
@@ -14,22 +60,11 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 ///
 /// Every call is guarded. A missing plugin, an unconfigured account or a
 /// failed load all end the same way — no ad, and the game carries on.
-class AdsController {
-  /// Google's own test units. They serve a real ad shaped placeholder to any
-  /// device without an AdMob account, which is what makes this testable now.
-  ///
-  /// **These must be replaced before the game ships.** Real units come from
-  /// the AdMob console, one per platform, and the app id in
-  /// `android/app/src/main/res/values/ad_ids.xml` and in `Info.plist` has to
-  /// be the matching real one. Shipping with these serves test ads to real
-  /// players and earns nothing; shipping real units while developing against
-  /// them gets the account suspended for invalid traffic.
-  static const String _androidTestUnit =
-      'ca-app-pub-3940256099942544/1033173712';
-  static const String _iosTestUnit = 'ca-app-pub-3940256099942544/4411468910';
-
-  InterstitialAd? _ready;
-  bool _loading = false;
+class AdsController extends ChangeNotifier {
+  InterstitialAd? _interstitial;
+  RewardedInterstitialAd? _rewarded;
+  bool _loadingInterstitial = false;
+  bool _loadingRewarded = false;
   bool _initialised = false;
 
   /// True while an ad is on screen, so two breaks arriving close together
@@ -41,49 +76,51 @@ class AdsController {
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  String get _unitId => defaultTargetPlatform == TargetPlatform.iOS
-      ? _iosTestUnit
-      : _androidTestUnit;
+  /// Whether an interstitial is loaded and could be shown right now.
+  bool get hasAdReady => _interstitial != null;
 
-  /// Whether an ad is loaded and could be shown right now.
-  bool get hasAdReady => _ready != null;
+  /// Whether an extra life can actually be offered. The button is hidden when
+  /// this is false: offering a reward the game cannot deliver is worse than
+  /// not offering one.
+  bool get canOfferExtraLife => _rewarded != null && !_showing;
 
-  /// Starts the SDK and fetches the first ad. Call once, at start up, and do
-  /// not await it: reaching the menu must not wait on a network.
+  /// Starts the SDK and fetches the first of each. Call once, at start up, and
+  /// do not await it: reaching the menu must not wait on a network.
   Future<void> initialize() async {
     if (_initialised || !isSupported) return;
     _initialised = true;
     try {
       await MobileAds.instance.initialize();
       preload();
+      preloadRewarded();
     } catch (error) {
       debugPrint('Pitchpole: ads unavailable ($error)');
     }
   }
 
-  /// Fetches the next ad into the slot, if it is empty and nothing is already
-  /// in flight.
+  /// Fetches the next interstitial, if the slot is empty and nothing is
+  /// already in flight.
   void preload() {
-    if (!isSupported || _loading || _ready != null) return;
-    _loading = true;
-    unawaited(_load());
+    if (!isSupported || _loadingInterstitial || _interstitial != null) return;
+    _loadingInterstitial = true;
+    unawaited(_loadInterstitial());
   }
 
   /// Split out and awaited inside its own try, because the load throws
   /// asynchronously when the plugin is missing. Wrapping the un-awaited call
   /// instead would leave that as an unhandled error rather than a caught one.
-  Future<void> _load() async {
+  Future<void> _loadInterstitial() async {
     try {
       await InterstitialAd.load(
-        adUnitId: _unitId,
+        adUnitId: AdUnits.interstitial,
         request: const AdRequest(),
         adLoadCallback: InterstitialAdLoadCallback(
           onAdLoaded: (ad) {
-            _loading = false;
-            _ready = ad;
+            _loadingInterstitial = false;
+            _interstitial = ad;
           },
           onAdFailedToLoad: (error) {
-            _loading = false;
+            _loadingInterstitial = false;
             // Not retried on a timer. The next break calls preload again,
             // which is a natural backoff: a player who is failing levels asks
             // for one every thirty seconds, and one who is not, rarely.
@@ -92,26 +129,59 @@ class AdsController {
         ),
       );
     } catch (error) {
-      _loading = false;
+      _loadingInterstitial = false;
       debugPrint('Pitchpole: ads unavailable ($error)');
     }
   }
 
-  /// Shows an ad if one is ready, and returns once the player is back in the
-  /// game. Returns whether anything was actually shown.
+  void preloadRewarded() {
+    if (!isSupported || _loadingRewarded || _rewarded != null) return;
+    _loadingRewarded = true;
+    unawaited(_loadRewarded());
+  }
+
+  Future<void> _loadRewarded() async {
+    try {
+      await RewardedInterstitialAd.load(
+        adUnitId: AdUnits.rewarded,
+        request: const AdRequest(),
+        rewardedInterstitialAdLoadCallback:
+            RewardedInterstitialAdLoadCallback(
+          onAdLoaded: (ad) {
+            _loadingRewarded = false;
+            _rewarded = ad;
+            // The out of lives panel decides whether to offer an extra life
+            // from this, and it may already be on screen when the ad lands.
+            notifyListeners();
+          },
+          onAdFailedToLoad: (error) {
+            _loadingRewarded = false;
+            debugPrint('Pitchpole: no rewarded ad (${error.code})');
+            notifyListeners();
+          },
+        ),
+      );
+    } catch (error) {
+      _loadingRewarded = false;
+      debugPrint('Pitchpole: ads unavailable ($error)');
+    }
+  }
+
+  /// Shows an interstitial if one is ready, and returns once the player is
+  /// back in the game. Returns whether anything was actually shown.
   ///
   /// Returns immediately, with false, when there is nothing loaded. Callers
   /// can await this unconditionally and carry on either way.
   Future<bool> showAtBreak() async {
     if (!isSupported || _showing) return false;
 
-    final ad = _ready;
+    final ad = _interstitial;
     if (ad == null) {
       // Nothing to show, so nothing to wait for. Line one up for next time.
       preload();
       return false;
     }
-    _ready = null;
+    _interstitial = null;
     _showing = true;
 
     final closed = Completer<void>();
@@ -141,7 +211,57 @@ class AdsController {
     }
   }
 
-  /// Test seam: pretends an ad is loaded without a platform behind it.
+  /// Plays the rewarded ad and reports whether the player earned the reward.
+  ///
+  /// False covers everything: no ad loaded, the ad failed, or the player
+  /// closed it early. The caller must treat all of those the same and grant
+  /// nothing — but must also never punish the player for it, since a failed
+  /// ad is not their doing.
+  Future<bool> showForExtraLife() async {
+    if (!isSupported || _showing) return false;
+
+    final ad = _rewarded;
+    if (ad == null) {
+      preloadRewarded();
+      return false;
+    }
+    _rewarded = null;
+    _showing = true;
+    notifyListeners();
+
+    var earned = false;
+    final closed = Completer<void>();
+    void finish(RewardedInterstitialAd shown) {
+      shown.dispose();
+      _showing = false;
+      preloadRewarded();
+      notifyListeners();
+      if (!closed.isCompleted) closed.complete();
+    }
+
+    try {
+      ad.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: finish,
+        onAdFailedToShowFullScreenContent: (shown, error) {
+          debugPrint('Pitchpole: rewarded ad failed to show ($error)');
+          finish(shown);
+        },
+      );
+      // Only this callback grants the life. Dismissing the ad early never
+      // reaches it, which is the whole contract of a rewarded ad.
+      await ad.show(onUserEarnedReward: (ad, reward) => earned = true);
+      await closed.future;
+      return earned;
+    } catch (error) {
+      debugPrint('Pitchpole: rewarded ad failed to show ($error)');
+      _showing = false;
+      preloadRewarded();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Test seam: pretends an ad is on screen without a platform behind it.
   @visibleForTesting
   set debugShowing(bool value) => _showing = value;
 }

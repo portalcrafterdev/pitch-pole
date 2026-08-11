@@ -57,7 +57,12 @@ class _GameScreenState extends State<GameScreen> {
       musicEnabled: progressStore.musicEnabled,
       onWin: _onWin,
       onRunOut: _onRunOut,
+      onLifeLost: _onLifeLost,
     );
+
+    // Sound and music are switchable from the pause menu, so the run has to
+    // pick the change up rather than waiting for the next level.
+    progressStore.addListener(_applyAudioSettings);
 
     // Held still until the break ad is out of the way. The level is already
     // on screen behind it, so the player sees where they are about to be
@@ -80,8 +85,21 @@ class _GameScreenState extends State<GameScreen> {
     _focus.requestFocus();
   }
 
+  /// A life went. An ad goes in the gap before the checkpoint, and the
+  /// respawn waits on this.
+  ///
+  /// Returns as soon as there is nothing loaded, which is most of the time on
+  /// a bad connection, so the respawn stays as immediate as it ever was.
+  Future<void> _onLifeLost() => adsController.showAtBreak();
+
+  void _applyAudioSettings() => _game.applyAudioSettings(
+        sound: progressStore.soundEnabled,
+        music: progressStore.musicEnabled,
+      );
+
   @override
   void dispose() {
+    progressStore.removeListener(_applyAudioSettings);
     _focus.dispose();
     super.dispose();
   }
@@ -119,6 +137,22 @@ class _GameScreenState extends State<GameScreen> {
     _game.overlays.remove(_pause);
     _game.paused = false;
     _game.unlockInput();
+    _focus.requestFocus();
+  }
+
+  /// Watch a rewarded ad for one more life, and carry on from the last
+  /// checkpoint instead of the start of the level.
+  ///
+  /// The reward is granted only by the SDK's own earned callback, so closing
+  /// the ad early gives nothing — but it also costs nothing: the panel is
+  /// still there with the same three ways out. A run is never lost because an
+  /// ad failed to play.
+  Future<void> _watchForExtraLife() async {
+    final earned = await adsController.showForExtraLife();
+    if (!mounted || !earned) return;
+
+    _game.overlays.remove(_failed);
+    _game.revive();
     _focus.requestFocus();
   }
 
@@ -212,6 +246,7 @@ class _GameScreenState extends State<GameScreen> {
             _failed: (context, game) => LevelFailed(
                   onRetry: _restart,
                   onLevels: _goToLevelSelect,
+                  onExtraLife: _watchForExtraLife,
                 ),
             _pause: (context, game) => PauseMenu(
                   levelId: _level.id,
