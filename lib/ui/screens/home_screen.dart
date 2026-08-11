@@ -6,6 +6,7 @@ import '../../game/logic/level_model.dart';
 import '../overlays/overlay_panel.dart';
 import '../palette.dart';
 import '../widgets/sign_in_button.dart';
+import '../widgets/volume_row.dart';
 import 'game_screen.dart';
 import 'level_select_screen.dart';
 
@@ -178,26 +179,65 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 8),
               const _ControlSchemePicker(),
               const Divider(height: 24, indent: 16, endIndent: 16),
-              SwitchListTile(
-                value: progressStore.soundEnabled,
-                onChanged: progressStore.setSound,
-                activeThumbColor: Palette.door,
-                title: const Text('Sound',
-                    style: TextStyle(color: Palette.text)),
-                subtitle: const Text(
-                  'Whoosh on flip, click on jump, thud on landing and death',
-                  style: TextStyle(color: Palette.textMuted, fontSize: 12),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 2),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'AUDIO',
+                    style: TextStyle(
+                      color: Palette.textMuted,
+                      fontSize: 11,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
-              SwitchListTile(
-                value: progressStore.musicEnabled,
-                onChanged: progressStore.setMusic,
-                activeThumbColor: Palette.door,
-                title: const Text('Music',
-                    style: TextStyle(color: Palette.text)),
-                subtitle: const Text(
-                  'A quiet loop under the run',
-                  style: TextStyle(color: Palette.textMuted, fontSize: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: VolumeRow(
+                  label: 'SOUND',
+                  onIcon: Icons.volume_up_rounded,
+                  offIcon: Icons.volume_off_rounded,
+                  on: progressStore.soundEnabled,
+                  volume: progressStore.soundVolume,
+                  onToggle: () =>
+                      progressStore.setSound(!progressStore.soundEnabled),
+                  onChanged: progressStore.setSoundVolume,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 0, 16, 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Whoosh on flip, click on jump, thud on landing and death',
+                    style: TextStyle(color: Palette.textMuted, fontSize: 12),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: VolumeRow(
+                  label: 'MUSIC',
+                  onIcon: Icons.music_note_rounded,
+                  offIcon: Icons.music_off_rounded,
+                  on: progressStore.musicEnabled,
+                  volume: progressStore.musicVolume,
+                  onToggle: () =>
+                      progressStore.setMusic(!progressStore.musicEnabled),
+                  onChanged: progressStore.setMusicVolume,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 0, 16, 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'A quiet loop under the run',
+                    style: TextStyle(color: Palette.textMuted, fontSize: 12),
+                  ),
                 ),
               ),
               SwitchListTile(

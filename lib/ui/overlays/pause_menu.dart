@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/progress_store.dart';
 import '../palette.dart';
+import '../widgets/volume_row.dart';
 import 'overlay_panel.dart';
 
 class PauseMenu extends StatelessWidget {
@@ -131,94 +132,30 @@ class _AudioToggles extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: _AudioChip(
-                  label: 'SOUND',
-                  onIcon: Icons.volume_up_rounded,
-                  offIcon: Icons.volume_off_rounded,
-                  on: progressStore.soundEnabled,
-                  onTap: () => progressStore.setSound(
-                    !progressStore.soundEnabled,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: _AudioChip(
-                  label: 'MUSIC',
-                  onIcon: Icons.music_note_rounded,
-                  offIcon: Icons.music_off_rounded,
-                  on: progressStore.musicEnabled,
-                  onTap: () => progressStore.setMusic(
-                    !progressStore.musicEnabled,
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 4),
+          VolumeRow(
+            label: 'SOUND',
+            onIcon: Icons.volume_up_rounded,
+            offIcon: Icons.volume_off_rounded,
+            on: progressStore.soundEnabled,
+            volume: progressStore.soundVolume,
+            onToggle: () =>
+                progressStore.setSound(!progressStore.soundEnabled),
+            onChanged: progressStore.setSoundVolume,
+            compact: true,
+          ),
+          VolumeRow(
+            label: 'MUSIC',
+            onIcon: Icons.music_note_rounded,
+            offIcon: Icons.music_off_rounded,
+            on: progressStore.musicEnabled,
+            volume: progressStore.musicVolume,
+            onToggle: () =>
+                progressStore.setMusic(!progressStore.musicEnabled),
+            onChanged: progressStore.setMusicVolume,
+            compact: true,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AudioChip extends StatelessWidget {
-  const _AudioChip({
-    required this.label,
-    required this.onIcon,
-    required this.offIcon,
-    required this.on,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData onIcon;
-  final IconData offIcon;
-  final bool on;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: on ? Palette.door.withValues(alpha: 0.16) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Palette.door.withValues(alpha: on ? 0.55 : 0.16),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                on ? onIcon : offIcon,
-                size: 15,
-                color: on ? Palette.door : Palette.textMuted,
-              ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  color: on ? Palette.door : Palette.textMuted,
-                  fontSize: 12,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

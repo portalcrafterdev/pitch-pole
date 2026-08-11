@@ -90,6 +90,12 @@ class SoundPlayer {
   bool enabled;
   bool musicEnabled;
 
+  /// The player's own levels, 0 to 1, from the two sliders in the settings
+  /// and the pause menu. Multiplied onto [Mix] rather than replacing it, so
+  /// the balance between the sounds survives whatever the player picks.
+  double soundVolume = 1;
+  double musicVolume = 1;
+
   /// How many players each effect keeps ready, and the ceiling before spare
   /// players are released instead of pooled.
   static const int _minPlayers = 2;
@@ -165,7 +171,13 @@ class SoundPlayer {
     if (!enabled) return;
     final pool = _pools[asset];
     if (pool == null) return;
-    unawaited(_fire(pool, volume));
+
+    // [Mix] decides how the sounds sit against each other; this is the
+    // player's own level on top of it, so turning the slider down quietens
+    // everything without changing the balance between them.
+    final level = volume * soundVolume;
+    if (level <= 0) return;
+    unawaited(_fire(pool, level));
   }
 
   static Future<void> _fire(AudioPool pool, double volume) async {
@@ -178,8 +190,24 @@ class SoundPlayer {
     }
   }
 
+  /// What the background player is actually set to: the bed's place in the
+  /// mix, scaled by the player's slider.
+  double get _musicLevel => Mix.music * musicVolume;
+
+  /// Moves the loop's volume while it is playing, so dragging the slider is
+  /// heard as it moves rather than on the next level.
+  Future<void> applyMusicVolume(double value) async {
+    musicVolume = value;
+    if (!_musicPlaying || !identical(_musicOwner, this)) return;
+    try {
+      await FlameAudio.bgm.audioPlayer.setVolume(_musicLevel);
+    } catch (_) {
+      // Nothing to do: the level still plays at whatever it was.
+    }
+  }
+
   /// Starts the loop, or leaves it running if a previous level already did.
-  Future<void> startMusic({double volume = Mix.music}) async {
+  Future<void> startMusic() async {
     if (!musicEnabled) return;
 
     // Claimed before the first await, so an outgoing level that stops the
@@ -197,7 +225,7 @@ class SoundPlayer {
       if (_musicPlaying) return;
 
       _musicPlaying = true;
-      await FlameAudio.bgm.play(Music.loop, volume: volume);
+      await FlameAudio.bgm.play(Music.loop, volume: _musicLevel);
     } catch (error) {
       _musicPlaying = false;
       // Dropped rather than kept, so a failure here is not cached for the rest

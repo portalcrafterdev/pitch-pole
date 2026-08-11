@@ -60,8 +60,13 @@ class _GameScreenState extends State<GameScreen> {
       onLifeLost: _onLifeLost,
     );
 
-    // Sound and music are switchable from the pause menu, so the run has to
-    // pick the change up rather than waiting for the next level.
+    // The volumes have to be on the player before onLoad starts the music,
+    // or the loop begins at full and drops when the first change arrives.
+    _applyAudioSettings();
+
+    // Sound, music and both volumes are all adjustable from the pause menu,
+    // so the run has to pick changes up rather than waiting for the next
+    // level.
     progressStore.addListener(_applyAudioSettings);
 
     // Held still until the break ad is out of the way. The level is already
@@ -102,6 +107,8 @@ class _GameScreenState extends State<GameScreen> {
   void _applyAudioSettings() => _game.applyAudioSettings(
         sound: progressStore.soundEnabled,
         music: progressStore.musicEnabled,
+        soundVolume: progressStore.soundVolume,
+        musicVolume: progressStore.musicVolume,
       );
 
   @override

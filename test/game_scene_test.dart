@@ -358,7 +358,16 @@ void main() {
     // the pause menu switches doing nothing until the next level.
     game.applyAudioSettings(sound: false, music: false);
     await play(tester, 0.5);
-    game.applyAudioSettings(sound: true, music: true);
+    game.applyAudioSettings(
+      sound: true,
+      music: true,
+      soundVolume: 0.3,
+      musicVolume: 0.6,
+    );
+    await play(tester, 0.5);
+    // Dragged to silence and back, which is the path that reaches the live
+    // volume change on the background player.
+    game.applyAudioSettings(sound: true, music: true, musicVolume: 0);
     await play(tester, 0.5);
 
     expect(tester.takeException(), isNull);

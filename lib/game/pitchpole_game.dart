@@ -322,13 +322,23 @@ class PitchpoleGame extends FlameGame {
   ///
   /// The player changes these from the pause menu, mid level, and expects to
   /// hear the result when they resume rather than on the next level.
-  void applyAudioSettings({required bool sound, required bool music}) {
+  void applyAudioSettings({
+    required bool sound,
+    required bool music,
+    double soundVolume = 1,
+    double musicVolume = 1,
+  }) {
     if (sound && !_sound.enabled) {
       // The pools are only built when sound was on at start up, so turning it
       // on mid run has to warm them or the rest of the level is silent.
       unawaited(SoundPlayer.warmUp());
     }
     _sound.enabled = sound;
+    _sound.soundVolume = soundVolume;
+
+    if (musicVolume != _sound.musicVolume) {
+      unawaited(_sound.applyMusicVolume(musicVolume));
+    }
 
     if (music == _sound.musicEnabled) return;
     _sound.musicEnabled = music;

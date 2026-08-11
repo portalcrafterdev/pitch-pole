@@ -24,6 +24,8 @@ class ProgressStore extends ChangeNotifier {
   static const String _hapticsKey = 'settings.haptics';
   static const String _soundKey = 'settings.sound';
   static const String _musicKey = 'settings.music';
+  static const String _soundVolumeKey = 'settings.soundVolume';
+  static const String _musicVolumeKey = 'settings.musicVolume';
   static const String _controlsKey = 'settings.controls';
 
   SharedPreferences? _prefs;
@@ -35,11 +37,19 @@ class ProgressStore extends ChangeNotifier {
   bool _haptics = true;
   bool _sound = true;
   bool _music = true;
+
+  /// Where each slider sits, from 0 to 1. This is the player's own level, on
+  /// top of the mix in [Mix]: that decides how the sounds sit against each
+  /// other, these decide how loud the two groups are overall.
+  double _soundVolume = 1;
+  double _musicVolume = 1;
   ControlScheme _controls = ControlScheme.halves;
 
   bool get hapticsEnabled => _haptics;
   bool get soundEnabled => _sound;
   bool get musicEnabled => _music;
+  double get soundVolume => _soundVolume;
+  double get musicVolume => _musicVolume;
   ControlScheme get controlScheme => _controls;
 
   Future<void> load() async {
@@ -65,6 +75,8 @@ class ProgressStore extends ChangeNotifier {
     _haptics = prefs.getBool(_hapticsKey) ?? true;
     _sound = prefs.getBool(_soundKey) ?? true;
     _music = prefs.getBool(_musicKey) ?? true;
+    _soundVolume = (prefs.getDouble(_soundVolumeKey) ?? 1).clamp(0.0, 1.0);
+    _musicVolume = (prefs.getDouble(_musicVolumeKey) ?? 1).clamp(0.0, 1.0);
     _controls = ControlScheme.fromName(prefs.getString(_controlsKey));
     notifyListeners();
   }
@@ -150,6 +162,25 @@ class ProgressStore extends ChangeNotifier {
     _music = enabled;
     notifyListeners();
     await _prefs?.setBool(_musicKey, enabled);
+  }
+
+  /// Both sliders notify on every drag, which is what makes the change
+  /// audible while the thumb is still moving, and only write to disk when the
+  /// value has actually moved.
+  Future<void> setSoundVolume(double value) async {
+    final level = value.clamp(0.0, 1.0);
+    if (_soundVolume == level) return;
+    _soundVolume = level;
+    notifyListeners();
+    await _prefs?.setDouble(_soundVolumeKey, level);
+  }
+
+  Future<void> setMusicVolume(double value) async {
+    final level = value.clamp(0.0, 1.0);
+    if (_musicVolume == level) return;
+    _musicVolume = level;
+    notifyListeners();
+    await _prefs?.setDouble(_musicVolumeKey, level);
   }
 
   Future<void> setControlScheme(ControlScheme scheme) async {

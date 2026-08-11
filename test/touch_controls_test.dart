@@ -245,6 +245,117 @@ void main() {
     });
   });
 
+  group('the audio sliders', () {
+    testWidgets('are in the pause menu and move the stored level',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PauseMenu(
+              levelId: 1,
+              seconds: 30,
+              onResume: () {},
+              onRestart: () {},
+              onLevels: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('SOUND'), findsOneWidget);
+      expect(find.text('MUSIC'), findsOneWidget);
+      expect(find.byType(Slider), findsNWidgets(2));
+      expect(find.text('100'), findsNWidgets(2),
+          reason: 'both start at full');
+
+      // Drag the sound slider to somewhere left of where it is.
+      final sound = find.byType(Slider).first;
+      await tester.tapAt(tester.getCenter(sound) - const Offset(60, 0));
+      await tester.pumpAndSettle();
+
+      expect(progressStore.soundVolume, lessThan(1));
+      expect(progressStore.soundVolume, greaterThan(0));
+      expect(progressStore.musicVolume, 1,
+          reason: 'the two channels are independent');
+    });
+
+    testWidgets('a muted channel cannot be dragged', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+      await progressStore.setSound(false);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PauseMenu(
+              levelId: 1,
+              seconds: 30,
+              onResume: () {},
+              onRestart: () {},
+              onLevels: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final before = progressStore.soundVolume;
+      await tester.tapAt(
+        tester.getCenter(find.byType(Slider).first) - const Offset(60, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(progressStore.soundVolume, before,
+          reason: 'muted keeps the level it will come back to');
+    });
+
+    testWidgets('the panel still fits a landscape phone', (tester) async {
+      // The pause panel has grown a lot: scheme chips, two slider rows and
+      // three buttons, on a screen about 320 points tall.
+      tester.view.physicalSize = const Size(900, 320) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PauseMenu(
+              levelId: 1,
+              seconds: 30,
+              onResume: () {},
+              onRestart: () {},
+              onLevels: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull,
+          reason: 'the pause panel overflowed on a short landscape screen');
+    });
+
+    test('the stored level survives a reload and is clamped', () async {
+      SharedPreferences.setMockInitialValues({
+        'settings.soundVolume': 0.4,
+        // Out of range on purpose: a hand edited or corrupt value must not
+        // reach the audio layer, where it would be a volume above full.
+        'settings.musicVolume': 3.5,
+      });
+      await progressStore.load();
+
+      expect(progressStore.soundVolume, 0.4);
+      expect(progressStore.musicVolume, 1);
+    });
+  });
+
   test('an unknown stored scheme falls back to the halves', () {
     expect(ControlScheme.fromName(null), ControlScheme.halves);
     expect(ControlScheme.fromName('nonsense'), ControlScheme.halves);
