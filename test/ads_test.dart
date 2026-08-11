@@ -8,6 +8,7 @@ import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/logic/level_model.dart';
 import 'package:pitchpole/game/logic/level_simulator.dart';
 import 'package:pitchpole/game/pitchpole_game.dart';
+import 'package:pitchpole/ui/overlays/level_failed.dart';
 import 'package:pitchpole/ui/screens/game_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -116,6 +117,57 @@ void main() {
       expect(adsController.canOfferExtraLife, isFalse);
 
       debugDefaultTargetPlatformOverride = null;
+    });
+  });
+
+  group('the out of lives panel', () {
+    Future<int> pumpPanel(WidgetTester tester) async {
+      var taken = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: LevelFailed(
+          onRetry: () {},
+          onLevels: () {},
+          onExtraLife: () => taken++,
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return taken;
+    }
+
+    tearDown(() => adsController.debugOfferExtraLife = false);
+
+    testWidgets('offers nothing it cannot deliver', (tester) async {
+      adsController.debugOfferExtraLife = false;
+      await pumpPanel(tester);
+
+      expect(find.text('WATCH AD FOR A LIFE'), findsNothing);
+      expect(find.text('RUN IT AGAIN'), findsOneWidget,
+          reason: 'the way out is always there');
+    });
+
+    testWidgets('offers the extra life once an ad is ready', (tester) async {
+      adsController.debugOfferExtraLife = true;
+      await pumpPanel(tester);
+
+      expect(find.text('WATCH AD FOR A LIFE'), findsOneWidget);
+    });
+
+    testWidgets('the offer appears when the ad lands after the panel',
+        (tester) async {
+      // The bug this is here for: the interstitial that plays when the last
+      // life goes covers this panel, and while it is up no extra life can be
+      // offered. If nothing tells the panel when that ad closes, the offer
+      // never appears at all — which is exactly what it did.
+      adsController.debugOfferExtraLife = false;
+      await pumpPanel(tester);
+      expect(find.text('WATCH AD FOR A LIFE'), findsNothing);
+
+      adsController.debugOfferExtraLife = true;
+      adsController.notifyListeners();
+      await tester.pumpAndSettle();
+
+      expect(find.text('WATCH AD FOR A LIFE'), findsOneWidget,
+          reason: 'the panel has to re-check when the ads controller changes');
     });
   });
 

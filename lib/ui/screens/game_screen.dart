@@ -90,7 +90,14 @@ class _GameScreenState extends State<GameScreen> {
   ///
   /// Returns as soon as there is nothing loaded, which is most of the time on
   /// a bad connection, so the respawn stays as immediate as it ever was.
-  Future<void> _onLifeLost() => adsController.showAtBreak();
+  Future<void> _onLifeLost() {
+    // Line the extra life up now, while there is still a life in hand. It has
+    // to be loaded *before* the last one goes: fetching it at the moment the
+    // panel appears means the offer arrives after the player has already read
+    // the panel and decided, or does not arrive at all.
+    adsController.preloadRewarded();
+    return adsController.showAtBreak();
+  }
 
   void _applyAudioSettings() => _game.applyAudioSettings(
         sound: progressStore.soundEnabled,

@@ -165,13 +165,23 @@ class PanelButton extends StatelessWidget {
                     Icon(icon, size: 20, color: accent),
                     const SizedBox(width: 10),
                   ],
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
+                  // Shrunk to fit rather than clipped or ellipsed. A label
+                  // here is an instruction, so losing the end of it is worse
+                  // than losing a point of size — and a long one overflowed
+                  // the row outright before this.
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                        ),
+                      ),
                     ),
                   ),
                 ],

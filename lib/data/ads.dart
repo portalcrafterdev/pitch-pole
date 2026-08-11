@@ -82,7 +82,17 @@ class AdsController extends ChangeNotifier {
   /// Whether an extra life can actually be offered. The button is hidden when
   /// this is false: offering a reward the game cannot deliver is worse than
   /// not offering one.
-  bool get canOfferExtraLife => _rewarded != null && !_showing;
+  ///
+  /// False while another ad is on screen, which is not a detail — the out of
+  /// lives panel is built underneath the interstitial that plays at the same
+  /// moment, so this only becomes true once that one is dismissed. Anything
+  /// reading it has to listen as well.
+  bool get canOfferExtraLife =>
+      debugOfferExtraLife || (_rewarded != null && !_showing);
+
+  /// Test seam: forces [canOfferExtraLife] on without a platform behind it.
+  @visibleForTesting
+  bool debugOfferExtraLife = false;
 
   /// Starts the SDK and fetches the first of each. Call once, at start up, and
   /// do not await it: reaching the menu must not wait on a network.
@@ -183,12 +193,18 @@ class AdsController extends ChangeNotifier {
     }
     _interstitial = null;
     _showing = true;
+    // Announced both ways round. The out of lives panel is built while this
+    // interstitial is still up, and [canOfferExtraLife] is false for as long
+    // as it is — so without telling anyone when it closes, that panel never
+    // re-checks and the extra life is never offered at all.
+    notifyListeners();
 
     final closed = Completer<void>();
     void finish(InterstitialAd shown) {
       shown.dispose();
       _showing = false;
       preload();
+      notifyListeners();
       if (!closed.isCompleted) closed.complete();
     }
 
@@ -207,6 +223,7 @@ class AdsController extends ChangeNotifier {
       debugPrint('Pitchpole: ad failed to show ($error)');
       _showing = false;
       preload();
+      notifyListeners();
       return false;
     }
   }
