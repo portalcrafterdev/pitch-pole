@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The AdMob application id.
+
+  Not optional once the ads SDK is on the classpath: it is read out of the
+  manifest when the app starts, and a build without it crashes on launch
+  rather than merely failing to show an ad.
+
+  The value below is Google's public test app id. It pairs with the test ad
+  units in lib/data/ads.dart and serves placeholder ads to any device, which
+  is what makes the whole thing testable without an account.
+
+  Before shipping, all three have to change together:
+    1. this id, from AdMob -> your app -> App settings,
+    2. the two ad unit ids in lib/data/ads.dart,
+    3. GADApplicationIdentifier in ios/Runner/Info.plist.
+
+  Mixing them is the expensive mistake. A real app id with test units earns
+  nothing; a test app id with real units serves nothing; and developing
+  against real units is what gets an AdMob account suspended for invalid
+  traffic, because Google counts those impressions as fraud.
+-->
+<resources>
+    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
+</resources>

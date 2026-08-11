@@ -1,0 +1,27 @@
+# Stamps the generated icon onto both platforms.
+#
+#   flutter test tool/make_icon.dart     # draw assets/icon/*.png
+#   dart run flutter_launcher_icons      # write the platform files
+#
+# The three source images are drawn by tool/make_icon.dart and committed, so
+# this step is reproducible and nobody has to open an image editor to change
+# the icon. Change a number in the tool, run both commands, commit the result.
+#
+# The generated platform files are committed too. They have to be: a build
+# reads them straight off disk and neither Gradle nor Xcode knows this tool
+# exists.
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+
+  android: "ic_launcher"
+  # Android 8 and up composite these two layers and then mask the result to
+  # whatever shape the launcher wants, so they are drawn pulled in towards the
+  # middle. See the two layouts in tool/make_icon.dart.
+  adaptive_icon_background: "assets/icon/icon_background.png"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  min_sdk_android: 21
+
+  ios: true
+  # The App Store rejects an icon with an alpha channel, and everything here
+  # is opaque anyway.
+  remove_alpha_ios: true

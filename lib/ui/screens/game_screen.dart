@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/ads.dart';
 import '../../data/progress_store.dart';
 import '../../game/logic/level_model.dart';
 import '../../game/logic/physics.dart';
@@ -56,6 +58,26 @@ class _GameScreenState extends State<GameScreen> {
       onWin: _onWin,
       onRunOut: _onRunOut,
     );
+
+    // Held still until the break ad is out of the way. The level is already
+    // on screen behind it, so the player sees where they are about to be
+    // rather than a black screen with an ad on it.
+    _game.paused = true;
+    _game.lockInput();
+    unawaited(_openLevel());
+  }
+
+  /// The ad before a level starts.
+  ///
+  /// Awaited, but [AdsController.showAtBreak] returns straight away when
+  /// nothing is loaded, so this is not a wait the player can be made to sit
+  /// through: no ad means the run simply starts.
+  Future<void> _openLevel() async {
+    await adsController.showAtBreak();
+    if (!mounted) return;
+    _game.paused = false;
+    _game.unlockInput();
+    _focus.requestFocus();
   }
 
   @override
@@ -76,7 +98,16 @@ class _GameScreenState extends State<GameScreen> {
     _game.overlays.add(_complete);
   }
 
-  void _onRunOut() => _game.overlays.add(_failed);
+  /// The last life went, which is the only failure the game has: an ordinary
+  /// death respawns at the last checkpoint with nothing in the way.
+  ///
+  /// The overlay goes up first and the ad over the top of it, so dismissing
+  /// the ad lands the player on the panel that explains what happened rather
+  /// than on a level that is already over.
+  void _onRunOut() {
+    _game.overlays.add(_failed);
+    unawaited(adsController.showAtBreak());
+  }
 
   void _openPause() {
     _game.lockInput();

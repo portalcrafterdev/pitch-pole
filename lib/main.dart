@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'data/ads.dart';
 import 'data/games_auth.dart';
 import 'data/progress_store.dart';
 import 'game/sound.dart';
@@ -33,6 +34,12 @@ Future<void> main() async {
   // platform at all if the player has signed in before, so a fresh install
   // gets no account prompt it did not ask for.
   unawaited(gamesAuth.load());
+
+  // Also not awaited, and for a stronger reason: this one starts a network
+  // fetch. The first ad has the whole of the menu and the level select to
+  // arrive in, and if it does not arrive the first level simply starts
+  // without one.
+  unawaited(adsController.initialize());
 
   // Build the sound pools while the menu is up, so the first jump of the
   // first level lands as quickly as the thousandth. Not awaited: a device

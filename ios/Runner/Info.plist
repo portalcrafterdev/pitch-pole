@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- AdMob. The iOS half of android/app/src/main/res/values/ad_ids.xml,
+	     and the same warning applies: this is Google's public test app id and
+	     all of the ids have to be swapped for real ones together. Missing
+	     entirely, the SDK throws on launch rather than skipping the ad. -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

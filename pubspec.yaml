@@ -38,6 +38,7 @@ dependencies:
   shared_preferences: ^2.5.5
   flame_audio: ^2.12.2
   games_services: ^5.3.0
+  google_mobile_ads: ^9.0.0
 
 dev_dependencies:
   flutter_test:
@@ -49,6 +50,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

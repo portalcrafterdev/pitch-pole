@@ -49,7 +49,7 @@ class Mix {
   const Mix._();
 
   /// The signature mechanic, but a whoosh rather than a hit.
-  static const double flip = 0.85;
+  static const double flip = 0.75;
 
   /// Both fire many times a level.
   static const double jump = 0.55;
