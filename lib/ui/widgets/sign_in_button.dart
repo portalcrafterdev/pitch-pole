@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../data/games_auth.dart';
+import '../../data/menu_audio.dart';
+import '../menu_palette.dart';
 import '../palette.dart';
 
 /// The Play Games / Game Center button on the home screen.
@@ -24,7 +26,10 @@ class SignInButton extends StatelessWidget {
 
   Widget _build(BuildContext context) {
     final signedIn = gamesAuth.isSignedIn;
-    final accent = signedIn ? Palette.door : Palette.textMuted;
+    // Sits on the bright sky of the home screen rather than on a dark panel,
+    // so it is a white pill with dark text. Quiet here means less colour, not
+    // less contrast: it is still the third thing read on the page.
+    final accent = signedIn ? MenuPalette.play : MenuPalette.inkSoft;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -32,21 +37,23 @@ class SignInButton extends StatelessWidget {
         SizedBox(
           height: compact ? 40 : 46,
           child: Material(
-            color: signedIn
-                ? Palette.door.withValues(alpha: 0.10)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            color: Colors.white.withValues(alpha: signedIn ? 0.92 : 0.78),
+            borderRadius: BorderRadius.circular(18),
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
               onTap: gamesAuth.isBusy
                   ? null
-                  : () => signedIn ? _showAccount(context) : _signIn(context),
+                  : () {
+                      MenuAudio.instance.tap();
+                      signedIn ? _showAccount(context) : _signIn(context);
+                    },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: accent.withValues(alpha: signedIn ? 0.45 : 0.22),
+                    color: accent.withValues(alpha: signedIn ? 0.85 : 0.35),
+                    width: 2,
                   ),
                 ),
                 child: Row(
@@ -60,10 +67,10 @@ class SignInButton extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: signedIn ? Palette.door : Palette.text,
+                          color: signedIn ? MenuPalette.play : MenuPalette.ink,
                           fontSize: 12,
                           letterSpacing: 0.8,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
@@ -79,9 +86,10 @@ class SignInButton extends StatelessWidget {
             gamesAuth.lastError!,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Palette.textMuted,
+              color: MenuPalette.ink,
               fontSize: 10,
               height: 1.35,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

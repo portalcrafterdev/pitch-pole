@@ -3,9 +3,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../data/level_repository.dart';
+import '../../data/menu_audio.dart';
 import '../../data/progress_store.dart';
 import '../../game/logic/level_model.dart';
-import '../palette.dart';
+import '../menu_palette.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/star_row.dart';
 import 'game_screen.dart';
@@ -81,17 +82,22 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Palette.background,
+      backgroundColor: MenuPalette.skyLow,
       appBar: AppBar(
-        backgroundColor: Palette.background,
+        // The same colour the gradient below it starts on, so the seam does
+        // not show. The body deliberately does not run behind the bar: the
+        // grid's top padding is fixed, and the scroll maths that opens the
+        // page on the right level is derived from it, so a bar floating over
+        // the top row would sit on the tiles rather than above them.
+        backgroundColor: MenuPalette.skyTop,
         elevation: 0,
-        foregroundColor: Palette.text,
+        foregroundColor: MenuPalette.ink,
         title: const Text(
           'LEVELS',
           style: TextStyle(
             fontSize: 15,
             letterSpacing: 4,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
           ),
         ),
         actions: [
@@ -99,19 +105,27 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
             animation: progressStore,
             builder: (context, _) => Padding(
               padding: const EdgeInsets.only(right: 18),
-              child: Row(
-                children: [
-                  const Icon(Icons.star_rounded,
-                      size: 18, color: Palette.star),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${progressStore.totalStars}',
-                    style: const TextStyle(
-                      color: Palette.text,
-                      fontWeight: FontWeight.w700,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star_rounded,
+                        size: 18, color: MenuPalette.gold),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${progressStore.totalStars}',
+                      style: const TextStyle(
+                        color: MenuPalette.ink,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -120,64 +134,74 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
       // Browsing, not playing: nothing here is timed and nothing is a
       // control, so it is the one screen a banner belongs on.
       bottomNavigationBar: const AdBanner(),
-      body: FutureBuilder<List<LevelModel>>(
-        future: levelRepository.loadAll(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: Palette.textMuted),
-            );
-          }
-          final levels = snapshot.data!;
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final grid = _Grid.forWidth(constraints.maxWidth);
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [MenuPalette.skyTop, MenuPalette.skyMid, MenuPalette.skyLow],
+            stops: [0.0, 0.45, 1.0],
+          ),
+        ),
+        child: FutureBuilder<List<LevelModel>>(
+          future: levelRepository.loadAll(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(color: MenuPalette.play),
+              );
+            }
+            final levels = snapshot.data!;
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final grid = _Grid.forWidth(constraints.maxWidth);
 
-              // Open on the level the player is actually on. Without this a
-              // pack this long always starts fifteen hundred tiles away from
-              // wherever they got to.
-              if (!_positioned) {
-                _positioned = true;
-                _controller = ScrollController(
-                  initialScrollOffset: grid.offsetFor(
-                    _currentIndex(levels),
-                    constraints.maxHeight,
-                    levels.length,
-                  ),
-                );
-              }
+                // Open on the level the player is actually on. Without this a
+                // pack this long always starts fifteen hundred tiles away from
+                // wherever they got to.
+                if (!_positioned) {
+                  _positioned = true;
+                  _controller = ScrollController(
+                    initialScrollOffset: grid.offsetFor(
+                      _currentIndex(levels),
+                      constraints.maxHeight,
+                      levels.length,
+                    ),
+                  );
+                }
 
-              return AnimatedBuilder(
-                animation: progressStore,
-                builder: (context, _) => GridView.builder(
-                  controller: _controller,
-                  padding: _Grid.padding,
-                  gridDelegate:
-                      const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: _Grid.maxTileWidth,
-                    crossAxisSpacing: _Grid.spacing,
-                    mainAxisSpacing: _Grid.spacing,
-                    childAspectRatio: _Grid.aspectRatio,
-                  ),
-                  itemCount: levels.length,
-                  itemBuilder: (context, index) => _LevelTile(
-                    level: levels[index],
-                    stars: progressStore.starsFor(levels[index].id),
-                    bestSeconds:
-                        progressStore.bestSecondsFor(levels[index].id),
-                    unlocked: progressStore.isUnlocked(levels[index].id),
-                    onTap: () => Navigator.of(context).pushReplacement(
-                      MaterialPageRoute<void>(
-                        builder: (_) =>
-                            GameScreen(levels: levels, index: index),
+                return AnimatedBuilder(
+                  animation: progressStore,
+                  builder: (context, _) => GridView.builder(
+                    controller: _controller,
+                    padding: _Grid.padding,
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: _Grid.maxTileWidth,
+                      crossAxisSpacing: _Grid.spacing,
+                      mainAxisSpacing: _Grid.spacing,
+                      childAspectRatio: _Grid.aspectRatio,
+                    ),
+                    itemCount: levels.length,
+                    itemBuilder: (context, index) => _LevelTile(
+                      level: levels[index],
+                      stars: progressStore.starsFor(levels[index].id),
+                      bestSeconds:
+                          progressStore.bestSecondsFor(levels[index].id),
+                      unlocked: progressStore.isUnlocked(levels[index].id),
+                      onTap: () => Navigator.of(context).pushReplacement(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              GameScreen(levels: levels, index: index),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -201,55 +225,91 @@ class _LevelTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final solved = stars > 0;
-    return Material(
-      color: unlocked ? Palette.surface : Palette.surface.withValues(alpha: 0.4),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: unlocked ? onTap : null,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: solved
-                  ? Palette.door.withValues(alpha: 0.35)
-                  : Palette.text.withValues(alpha: unlocked ? 0.1 : 0.04),
+
+    // Three states, told apart by fill before anything is read: a solved
+    // level is green, an open one is white, a locked one is faded back into
+    // the sky. A child scrolling this is looking for "where can I go", and
+    // that answer should not depend on reading a four digit number.
+    final Color fill;
+    final Color edge;
+    if (!unlocked) {
+      fill = Colors.white.withValues(alpha: 0.34);
+      edge = Colors.white.withValues(alpha: 0.45);
+    } else if (solved) {
+      fill = MenuPalette.play;
+      edge = const Color(0xFF15A257);
+    } else {
+      fill = Colors.white;
+      edge = const Color(0xFFBFD8E4);
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: unlocked
+            ? [BoxShadow(color: edge, offset: const Offset(0, 4))]
+            : null,
+      ),
+      child: Material(
+        color: fill,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: unlocked
+              ? () {
+                  MenuAudio.instance.tap();
+                  onTap();
+                }
+              : null,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: solved
+                    ? Colors.white.withValues(alpha: 0.7)
+                    : Colors.white.withValues(alpha: 0.9),
+                width: 2,
+              ),
             ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!unlocked)
-                Icon(
-                  Icons.lock_rounded,
-                  size: 22,
-                  color: Palette.textMuted.withValues(alpha: 0.5),
-                )
-              else
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (!unlocked)
+                  Icon(
+                    Icons.lock_rounded,
+                    size: 22,
+                    color: MenuPalette.ink.withValues(alpha: 0.35),
+                  )
+                else
+                  Text(
+                    '${level.id}',
+                    style: TextStyle(
+                      color: solved ? Colors.white : MenuPalette.ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                if (unlocked)
+                  StarRow(stars: stars, size: 15)
+                else
+                  const SizedBox(height: 15),
+                const SizedBox(height: 3),
                 Text(
-                  '${level.id}',
+                  bestSeconds == null
+                      ? ' '
+                      : '${bestSeconds!.toStringAsFixed(1)}s',
                   style: TextStyle(
-                    color: solved ? Palette.door : Palette.text,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
+                    color: solved
+                        ? Colors.white.withValues(alpha: 0.9)
+                        : MenuPalette.inkSoft,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-              const SizedBox(height: 6),
-              if (unlocked)
-                StarRow(stars: stars, size: 15)
-              else
-                const SizedBox(height: 15),
-              const SizedBox(height: 3),
-              Text(
-                bestSeconds == null ? ' ' : '${bestSeconds!.toStringAsFixed(1)}s',
-                style: const TextStyle(
-                  color: Palette.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

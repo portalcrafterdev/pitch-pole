@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../data/menu_audio.dart';
+import '../menu_palette.dart';
 import '../palette.dart';
 
 /// The shared look for every full screen overlay.
@@ -116,8 +118,15 @@ class OverlayPanel extends StatelessWidget {
   }
 }
 
-/// Primary action inside an overlay.
-class PanelButton extends StatelessWidget {
+/// Primary action inside an overlay, and the only button shape the game uses.
+///
+/// It is a solid slab with a hard lip under it rather than an outline, and it
+/// sinks onto that lip when pressed. That is worth the few extra lines: an
+/// outlined button asks the player to know that an outline means "tappable",
+/// and the youngest player here cannot read the label to begin with. A thing
+/// that looks like a physical button and visibly goes down when pushed does
+/// not need reading.
+class PanelButton extends StatefulWidget {
   const PanelButton({
     super.key,
     required this.label,
@@ -139,54 +148,117 @@ class PanelButton extends StatelessWidget {
   final bool compact;
 
   @override
+  State<PanelButton> createState() => _PanelButtonState();
+}
+
+class _PanelButtonState extends State<PanelButton> {
+  bool _down = false;
+
+  /// The lip the button sits on, and the shade the fill darkens to.
+  static Color _deepen(Color c, double amount) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation + 0.05).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final accent = widget.accent;
+
+    // Opaque either way, and that is not a style choice. The lip below is a
+    // hard edged shadow rather than a blurred one, and it sits only a few
+    // points behind the face, so a translucent face lets the lip show straight
+    // through the whole button and the slab comes out the colour of its own
+    // shadow. Blended against the panel it lands on instead.
+    final fill = widget.filled
+        ? accent
+        : Color.alphaBlend(accent.withValues(alpha: 0.14), Palette.surface);
+
+    // Taken off the fill rather than off the accent, so a quiet button on a
+    // dark panel gets a lip darker than itself instead of a pale one.
+    final lip = widget.filled ? _deepen(accent, 0.16) : _deepen(fill, 0.05);
+
+    // White on a pale fill is the usual way a bright design becomes
+    // unreadable, so the label picks its own colour off the fill it lands on
+    // rather than trusting the caller to have chosen a dark enough accent.
+    final onFill = !widget.filled
+        ? accent
+        : (fill.computeLuminance() > 0.45 ? MenuPalette.ink : Colors.white);
+
+    final lipDepth = _down ? 2.0 : (widget.compact ? 5.0 : 6.0);
+
     return Padding(
-      padding: EdgeInsets.only(bottom: compact ? 8 : 10),
-      child: SizedBox(
-        width: double.infinity,
-        height: compact ? 44 : 52,
-        child: Material(
-          color: filled ? accent.withValues(alpha: 0.16) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: accent.withValues(alpha: filled ? 0.55 : 0.16),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 20, color: accent),
-                    const SizedBox(width: 10),
-                  ],
-                  // Shrunk to fit rather than clipped or ellipsed. A label
-                  // here is an instruction, so losing the end of it is worse
-                  // than losing a point of size — and a long one overflowed
-                  // the row outright before this.
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: accent,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        ),
-                      ),
+      padding: EdgeInsets.only(bottom: widget.compact ? 8 : 10),
+      child: GestureDetector(
+        // Opaque, so the gap between the icon and the label is still the
+        // button. A small target with holes in it is a small target.
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) {
+          // On the press rather than on the release, so the sound lands with
+          // the button going down. A blip that waits for the finger to lift
+          // reads as a delay rather than as feedback.
+          MenuAudio.instance.tap();
+          setState(() => _down = true);
+        },
+        onTapUp: (_) => setState(() => _down = false),
+        onTapCancel: () => setState(() => _down = false),
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOut,
+          height: widget.compact ? 44 : 52,
+          width: double.infinity,
+          // Sinks by exactly what the lip loses, so the top face travels and
+          // the bottom edge stays put.
+          transform: Matrix4.translationValues(
+            0,
+            (widget.compact ? 5.0 : 6.0) - lipDepth,
+            0,
+          ),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: widget.filled
+                  ? Colors.white.withValues(alpha: 0.45)
+                  : accent.withValues(alpha: 0.45),
+              width: 2,
+            ),
+            boxShadow: [
+              // Hard edged rather than blurred: this is a moulded edge, not a
+              // shadow, and a blur would read as the button floating.
+              BoxShadow(color: lip, offset: Offset(0, lipDepth)),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 22, color: onFill),
+                const SizedBox(width: 10),
+              ],
+              // Shrunk to fit rather than clipped or ellipsed. A label here is
+              // an instruction, so losing the end of it is worse than losing a
+              // point of size, and a long one overflowed the row outright
+              // before this.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: onFill,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
