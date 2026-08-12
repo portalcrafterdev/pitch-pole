@@ -35,18 +35,23 @@ Signing, Google re-signs the upload, and the fingerprint that matters is the one
 under **Setup > App integrity > App signing key certificate**, not the local
 one. See [play-games-setup.md](play-games-setup.md).
 
-### 2. There is no privacy policy
+### 2. The privacy policy is written but not deployed
 
 Required for every app, and doubly so here: AdMob collects the Advertising ID.
 It must be a public URL, reachable without a login, and it has to actually
 describe what the app collects. The console rejects a link that 404s.
 
-What this app does, for whoever writes it: it stores stars, best times, coins
-and settings on the device with `shared_preferences` and sends none of it
-anywhere. There is no backend and no account system of its own. Google Play
-Games sign in is optional and yields a display name and avatar, used only to
-show who is signed in. Google AdMob serves the ads and collects what AdMob
-collects.
+The page is written, from what the code does rather than from a template:
+[store/privacy-policy/index.html](../store/privacy-policy/index.html). It is a
+single self-contained file with no build step. Deploy it to Netlify, then paste
+the URL into the console. Instructions and the two edits to make before
+publishing it are in
+[store/privacy-policy/README.md](../store/privacy-policy/README.md).
+
+Its children section currently promises that ads are limited to all-ages
+content and served without personalisation, which is **not true until the
+Mobile Ads SDK is configured that way**. Settle the question below first, then
+either configure the SDK or reword that paragraph.
 
 ### 3. Ship an app bundle, not an APK
 
@@ -183,7 +188,8 @@ flutter test tool/make_store_art.dart
 1. Upload keystore, release signing config, Play App Signing.
 2. Update the Play Games credential with the new certificate.
 3. Answer the target audience question, then configure the ads SDK to match.
-4. Write and host the privacy policy.
+4. Reword the privacy policy's children section to match that answer, delete
+   the note addressed to you, and deploy the page to Netlify.
 5. Fill in the listing from [store/listing.md](../store/listing.md) and upload
    the artwork.
 6. Content rating and data safety forms.

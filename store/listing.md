@@ -100,14 +100,13 @@ forward speed, which is what Play's Arcade category describes.
 
 ## Contact details
 
-Required before you can publish. Fill these in yourself.
-
 | Field | Value |
 | --- | --- |
-| Email | *(required, shown publicly on the listing)* |
+| Developer name | Portal Crafter |
+| Email | hello@portalcrafter.com *(shown publicly on the listing)* |
 | Website | *(optional)* |
 | Phone | *(optional)* |
-| Privacy policy URL | *(required, see the checklist)* |
+| Privacy policy URL | the deployed [privacy-policy/](privacy-policy/) page |
 
 ## Graphics
 
