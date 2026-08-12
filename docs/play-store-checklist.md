@@ -121,22 +121,24 @@ pulled.
 
 ### Data safety
 
-The app itself collects nothing. AdMob does, and the form is about the app as
-shipped, so the SDK's collection is yours to declare.
+**Already filled in:** [store/data-safety.csv](../store/data-safety.csv).
+Upload it under **App content > Data safety > Import from CSV**, then read the
+summary screen before submitting. The reasoning behind every answer, and the
+one judgement call in it, are in [store/data-safety.md](../store/data-safety.md).
 
-| Data type | Collected | Why |
-| --- | --- | --- |
-| Device or other IDs | Yes | Advertising ID, by AdMob |
-| App activity / interactions | Yes | Ad interactions, by AdMob |
-| Approximate location | Check AdMob's guidance | AdMob may derive coarse location from IP |
-| Personal info, files, photos, contacts, messages | No | nothing in the app touches them |
+The app itself collects nothing: no analytics, no crash reporting, no backend.
+Everything declared is the Google Mobile Ads SDK, taken from Google's published
+disclosure rather than guessed.
 
-Answer "data is encrypted in transit" (AdMob uses HTTPS). Google publishes a
-data-safety mapping for the Mobile Ads SDK; use it rather than guessing, since
-the answers change with SDK versions.
+| Play data type | Collected | Shared | Purposes |
+| --- | --- | --- | --- |
+| Location / Approximate location | Yes | Yes | Advertising, Analytics, Fraud prevention |
+| App activity / App interactions | Yes | Yes | Advertising, Analytics |
+| App info and performance / Diagnostics | Yes | Yes | Analytics, App functionality |
+| Device or other IDs | Yes | Yes | Advertising, Analytics, Fraud prevention |
 
-Play Games sign in returns a display name and avatar. It is optional and the
-game stores the name locally only, but declare it if you keep it.
+Encrypted in transit: yes. Personal info, files, photos, contacts and messages:
+none, because nothing in the app touches them.
 
 ---
 
