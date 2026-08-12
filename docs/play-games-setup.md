@@ -19,7 +19,7 @@ it and picks the right service per platform, but the console side is on hold.
 | `com.google.android.gms.games.APP_ID` meta-data | [AndroidManifest.xml](../android/app/src/main/AndroidManifest.xml) | done |
 | `INTERNET` permission in every build | [AndroidManifest.xml](../android/app/src/main/AndroidManifest.xml) | done |
 | Permanent `applicationId` | [build.gradle.kts](../android/app/build.gradle.kts) | `com.portalcrafter.pitchpole` |
-| Play Games project number | [game_ids.xml](../android/app/src/main/res/values/game_ids.xml) | `611765389374` |
+| Play Games project number | [game_ids.xml](../android/app/src/main/res/values/game_ids.xml) | `245388757681` |
 
 ## What is left
 
@@ -90,10 +90,10 @@ Add the Google account that is signed in on the phone or emulator you test on.
 ## 5. Put the number in the app
 
 Done: [game_ids.xml](../android/app/src/main/res/values/game_ids.xml) holds
-`611765389374`.
+`245388757681`.
 
 ```xml
-<string name="games_app_id" translatable="false">611765389374</string>
+<string name="games_app_id" translatable="false">245388757681</string>
 ```
 
 If it ever changes, rebuild rather than hot reloading. The Play Games SDK reads
@@ -116,14 +116,15 @@ Expected: an account chooser, then the button changes to the player's name.
 The game reports failures rather than swallowing them. Tapping the button and
 getting a dialog is the normal way to find out what is wrong.
 
-- **"Play Games is not set up for this build."** No project registered for this
-  package name and certificate. Steps 1 to 3, or step 4: a missing tester looks
-  identical from inside the game.
+- **"Play Games could not sign in."** Play Games opened and closed without
+  signing anybody in. It reports a missing credential, a missing tester and a
+  device with no Google account identically, so the dialog lists all three
+  rather than guessing. Steps 2 to 4.
 - **"Sign in was not finished."** The Play Games screen closed without signing
   in, usually because it was dismissed. Nothing is wrong.
 - **"Play Games is not available in this build."** The platform side is
   missing, which normally means it is running somewhere it does not ship.
 
 A crash on launch rather than a failed sign in means `games_app_id` is missing
-entirely. The SDK reads it from a `ContentProvider` at process start, so it
-must be present even while it is a placeholder.
+entirely. The SDK reads it from a `ContentProvider` at process start, so it has
+to be present for the app to start at all, whatever its value.
