@@ -7,13 +7,20 @@
   out of the manifest, so a build with the value missing crashes on launch
   rather than merely failing to sign in.
 
-  The value below is a placeholder, so the game launches and everything except
-  sign in works. docs/play-games-setup.md walks through the whole job with the
-  console screens named; the short version is:
+  The value below is the real project number for this game. It is not a
+  secret: it ships inside every APK and identifies the game rather than
+  authorising anything, which is why it lives in the repository next to the
+  AdMob app id rather than in a keystore.
+
+  Having it here is necessary but not sufficient. Play Games matches on the
+  project, the package name and the signing certificate together, so a build
+  signed with a certificate that has no credential against this project still
+  fails to sign in. docs/play-games-setup.md has the whole job with the console
+  screens named; the short version is:
 
     1. Play Console -> your app -> Grow -> Play Games Services -> Setup.
-    2. Create a Play Games Services project. It gives you a project number,
-       a long number that looks like 123456789012.
+    2. Create a Play Games Services project. It gives you the project number
+       above.
     3. Add a credential of type "Android", using the applicationId
        com.portalcrafter.pitchpole and the SHA-1 of the keystore the build is
        signed with. The debug keystore and the release keystore are different,
@@ -38,11 +45,12 @@
     3b. Add your own Google account to the Testers list on the Play Games
        Services project. Until the project is published, sign in fails for
        anybody not on that list even when everything above is correct.
-    4. Put the project number here, replacing the placeholder.
+    4. Put the project number here. Done.
 
-  Until step 4 is done the button on the home screen still appears; tapping it
-  reports that Play Games is not set up rather than pretending to work.
+  Whenever any of the above is incomplete the button on the home screen still
+  appears; tapping it reports that Play Games is not set up rather than
+  pretending to work.
 -->
 <resources>
-    <string name="games_app_id" translatable="false">000000000000</string>
+    <string name="games_app_id" translatable="false">611765389374</string>
 </resources>

@@ -266,16 +266,20 @@ class GamesAuth extends ChangeNotifier {
   /// inside the game that is indistinguishable from nothing having happened.
   void _failConfiguration() => service == GamesService.playGames
       ? _fail(
-          'Play Games is not set up for this build.',
-          'Play Games showed no accounts because there is no Play Games '
-              'Services project registered for this package name yet, so '
-              'there is nothing for it to sign in to.\n\n'
-              'Setting one up needs three things, in the Play Console: a Play '
-              'Games Services project, its project number in '
-              'android/app/src/main/res/values/game_ids.xml, and an Android '
-              'credential holding the signing certificate this build was '
-              'signed with. A debug build and a release build have different '
-              'certificates, so both need one.',
+          'Play Games could not sign in.',
+          'Play Games opened and then closed without signing anybody in. It '
+              'reports every one of the causes below the same way, so they '
+              'have to be ruled out rather than read off:\n\n'
+              '1. No Google account on this device. Add one in Settings, then '
+              'try again.\n'
+              '2. No Android credential in the Play Games Services project '
+              'for this build. It matches on the package name and the signing '
+              'certificate together, and debug and release are signed with '
+              'different certificates, so each needs its own.\n'
+              '3. This account is not on the Testers list. Until the project '
+              'is published, sign in fails for anybody not on it however '
+              'correct everything else is.\n\n'
+              'docs/play-games-setup.md has the console screens named.',
         )
       : _fail(
           'Game Center is not set up for this build.',

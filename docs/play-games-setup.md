@@ -1,12 +1,12 @@
 # Turning on Google Play Games sign in
 
-Everything in the app is already wired. The only thing missing is a Play Games
-Services project, which lives in the Play Console and cannot be created from
-the codebase. This is that job, start to finish.
+Everything in the app is wired, and the project number is in. What is left is
+console side: Play Games matches on the project, the package name and the
+signing certificate together, so the number alone does not sign anybody in.
 
-Until step 5 is done the button on the home screen still appears and the game
-plays normally. Tapping it reports that Play Games is not set up rather than
-pretending to work, so it is safe to ship in this state.
+While any of it is incomplete the button on the home screen still appears and
+the game plays normally. Tapping it reports that Play Games is not set up
+rather than pretending to work, so it is safe to ship in this state.
 
 Apple Game Center is deliberately not covered here. The code already handles
 it and picks the right service per platform, but the console side is on hold.
@@ -19,7 +19,15 @@ it and picks the right service per platform, but the console side is on hold.
 | `com.google.android.gms.games.APP_ID` meta-data | [AndroidManifest.xml](../android/app/src/main/AndroidManifest.xml) | done |
 | `INTERNET` permission in every build | [AndroidManifest.xml](../android/app/src/main/AndroidManifest.xml) | done |
 | Permanent `applicationId` | [build.gradle.kts](../android/app/build.gradle.kts) | `com.portalcrafter.pitchpole` |
-| Play Games project number | [game_ids.xml](../android/app/src/main/res/values/game_ids.xml) | **placeholder `000000000000`** |
+| Play Games project number | [game_ids.xml](../android/app/src/main/res/values/game_ids.xml) | `611765389374` |
+
+## What is left
+
+| Step | Who | State |
+| --- | --- | --- |
+| Android credential: package + debug SHA-1 | Play Console | check step 2 |
+| Your Google account on the Testers list | Play Console | check step 4 |
+| A Google account signed in on the test device | the device | the emulator here has none |
 
 ## 1. Create the Play Games Services project
 
@@ -81,15 +89,16 @@ Add the Google account that is signed in on the phone or emulator you test on.
 
 ## 5. Put the number in the app
 
-Replace the placeholder in
-[game_ids.xml](../android/app/src/main/res/values/game_ids.xml):
+Done: [game_ids.xml](../android/app/src/main/res/values/game_ids.xml) holds
+`611765389374`.
 
 ```xml
-<string name="games_app_id" translatable="false">123456789012</string>
+<string name="games_app_id" translatable="false">611765389374</string>
 ```
 
-Then rebuild. This value is read out of the manifest by the Play Games SDK when
-the process starts, so a hot reload will not pick it up.
+If it ever changes, rebuild rather than hot reloading. The Play Games SDK reads
+this out of the manifest from a `ContentProvider` when the process starts, so a
+hot reload will not pick it up.
 
 ## Checking it worked
 
