@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'data/ads.dart';
 import 'data/games_auth.dart';
+import 'data/menu_audio.dart';
 import 'data/progress_store.dart';
 import 'game/sound.dart';
 import 'ui/palette.dart';
@@ -45,6 +46,11 @@ Future<void> main() async {
   // first level lands as quickly as the thousandth. Not awaited: a device
   // with no working audio should still reach the menu immediately.
   if (progressStore.soundEnabled) unawaited(SoundPlayer.warmUp());
+
+  // The bed under the menus, and the blip the buttons make. Also not awaited,
+  // and for the same reason: music is never worth making anyone wait at a
+  // black screen for.
+  unawaited(MenuAudio.instance.start());
 
   runApp(const PitchpoleApp());
 }

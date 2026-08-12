@@ -23,7 +23,11 @@ class Sfx {
   /// A short rise on reaching the door.
   static const String win = 'win.wav';
 
-  static const List<String> all = [land, flip, jump, death, win];
+  /// A soft blip under a menu button. The only sound here that is not part of
+  /// a run, and the only one a player hears before they have started one.
+  static const String tap = 'tap.wav';
+
+  static const List<String> all = [land, flip, jump, death, win, tap];
 }
 
 /// The background bed, so a quiet stretch of track is never silent. One loop,
@@ -61,6 +65,11 @@ class Mix {
   /// The two that end a run.
   static const double death = 1;
   static const double win = 0.95;
+
+  /// A menu button. Low, and lower than the jump it sits next to: a child will
+  /// press PLAY twenty times in a row to hear it, and it has nothing to be
+  /// heard over.
+  static const double tap = 0.45;
 
   /// Under all of it. Quiet by design, but no longer inaudible: the file it
   /// scales used to be more than five times below full scale, so this being

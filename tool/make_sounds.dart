@@ -16,6 +16,7 @@ const int sampleRate = 22050;
 void main() {
   final dir = Directory('assets/audio')..createSync(recursive: true);
   _write('${dir.path}/jump.wav', _click());
+  _write('${dir.path}/tap.wav', _tap());
   _write('${dir.path}/flip.wav', _whoosh());
   _write('${dir.path}/land.wav', _land());
   _write('${dir.path}/death.wav', _death());
@@ -44,6 +45,31 @@ List<double> _click() {
     final noise = (rng.nextDouble() * 2 - 1) * 0.22;
     return (tone + noise) * env * 0.32;
   });
+}
+
+/// A soft, round blip for a menu button.
+///
+/// Deliberately not the jump click, which is the closest thing already in the
+/// set. That one is a dry snap with noise through it, because it fires on a
+/// control the player is working during a run and has to cut through the bed.
+/// A menu tap has nothing to cut through, and it is the sound a child will
+/// make dozens of times over on the front page for the pleasure of it, so it
+/// is a rounded tone with the edge taken off: eased in rather than struck,
+/// falling slightly as it goes, and no noise at all.
+List<double> _tap() {
+  const seconds = 0.07;
+  final n = (sampleRate * seconds).round();
+  final out = <double>[];
+  var phase = 0.0;
+  for (var i = 0; i < n; i++) {
+    final t = i / sampleRate;
+    final progress = i / n;
+    phase += 2 * pi * (880 - 200 * progress) / sampleRate;
+    // The attack is what separates a blip from a click. Instant is a click.
+    final env = (1 - exp(-t * 520)) * exp(-t * 26);
+    out.add((sin(phase) * 0.8 + sin(phase * 2) * 0.10) * env * 0.4);
+  }
+  return out;
 }
 
 /// A soft thud on landing. Short, low, and quieter than death.

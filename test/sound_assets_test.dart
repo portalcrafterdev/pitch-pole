@@ -2,7 +2,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitchpole/data/menu_audio.dart';
+import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/sound.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 String _ascii(ByteData data, int offset, int length) => String.fromCharCodes([
       for (var i = 0; i < length; i++) data.getUint8(offset + i),
@@ -24,7 +27,7 @@ void main() {
 
   test('every sound the game asks for exists', () {
     expect(Sfx.all,
-        ['land.wav', 'flip.wav', 'jump.wav', 'death.wav', 'win.wav']);
+        ['land.wav', 'flip.wav', 'jump.wav', 'death.wav', 'win.wav', 'tap.wav']);
 
     for (final name in [...Sfx.all, Music.loop]) {
       expect(File('assets/audio/$name').existsSync(), isTrue,
@@ -134,6 +137,50 @@ void main() {
       await silent.startMusic();
 
       expect(SoundPlayer.debugMusicOwner, isNull);
+    });
+  });
+
+  group('the menus have a bed of their own', () {
+    // The whole front of the game used to be silent: every sound lived inside
+    // PitchpoleGame, so nothing played until a level had loaded. The menus
+    // queue up behind the same ownership rule the levels do, which is what
+    // makes pressing PLAY seamless rather than a restart.
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+    });
+
+    test('the menu holds the loop, and hands it to the level', () async {
+      await MenuAudio.instance.start();
+      expect(SoundPlayer.debugMusicOwner, isNotNull,
+          reason: 'the menu starts the bed before a level ever exists');
+
+      final level = SoundPlayer(enabled: false, musicEnabled: true);
+      await level.startMusic();
+      expect(SoundPlayer.debugMusicOwner, same(level),
+          reason: 'pressing PLAY hands the running loop to the level');
+
+      // The level cannot know a menu is what comes next rather than another
+      // level, so it stops the music on the way out and the menu asks for it
+      // back. Without that the app is silent for the rest of the session.
+      await level.stopMusic();
+      expect(SoundPlayer.debugMusicOwner, isNull);
+
+      await MenuAudio.instance.start();
+      expect(SoundPlayer.debugMusicOwner, isNotNull,
+          reason: 'coming back to the menu takes the bed back');
+    });
+
+    test('turning music off in the settings stops the menu bed', () async {
+      await MenuAudio.instance.start();
+      expect(SoundPlayer.debugMusicOwner, isNotNull);
+
+      await progressStore.setMusic(false);
+      // The store notifies synchronously; the stop it triggers does not.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(SoundPlayer.debugMusicOwner, isNull,
+          reason: 'the menu follows the same switch the run does');
     });
   });
 
