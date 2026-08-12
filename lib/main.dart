@@ -55,8 +55,33 @@ Future<void> main() async {
   runApp(const PitchpoleApp());
 }
 
-class PitchpoleApp extends StatelessWidget {
+class PitchpoleApp extends StatefulWidget {
   const PitchpoleApp({super.key});
+
+  @override
+  State<PitchpoleApp> createState() => _PitchpoleAppState();
+}
+
+class _PitchpoleAppState extends State<PitchpoleApp> {
+  /// Play Games and Game Center both sign in through a screen of their own,
+  /// over the top of the game. Coming back to the front is the only signal the
+  /// game gets that the screen has closed, and a sign in that was backed out
+  /// of never answers otherwise.
+  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
+    onResume: () => unawaited(gamesAuth.resolvePendingSignIn()),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle;
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -165,6 +165,40 @@ class GamesAuth extends ChangeNotifier {
     }
   }
 
+  /// Settles a sign in the platform walked away from.
+  ///
+  /// Play Games puts its own full screen flow over the game, and backing out
+  /// of it does not always complete the call the plugin is waiting on. Without
+  /// this the button is left reading SIGNING IN with a spinner in it until
+  /// [_signInTimeout] gives up five minutes later, which looks exactly like
+  /// the game having hung. Backing out of a sign in is an ordinary thing to
+  /// do, so it cannot cost five minutes of a dead button.
+  ///
+  /// Called when the app comes back to the front, which is the moment that
+  /// flow has closed. Asking the platform is what decides the answer rather
+  /// than assuming a cancel: coming back having actually signed in is just as
+  /// likely, and that is the same question [refresh] asks.
+  Future<void> resolvePendingSignIn() async {
+    if (_state != GamesAuthState.signingIn) return;
+
+    final player = await _currentPlayer();
+
+    // The call the button is waiting on may have landed while the platform was
+    // answering this one. It knows more than we do, so it wins.
+    if (_state != GamesAuthState.signingIn) return;
+
+    if (player == null) {
+      _fail(
+        'Sign in was not finished.',
+        'The ${service.short} screen closed without signing in. That is '
+            'usually because it was dismissed, so nothing is wrong and you can '
+            'tap the button again whenever you like.',
+      );
+      return;
+    }
+    await _setSignedIn(player);
+  }
+
   /// Stops the game reconnecting on the next launch.
   ///
   /// Deliberately not called "sign out": neither Play Games nor Game Center

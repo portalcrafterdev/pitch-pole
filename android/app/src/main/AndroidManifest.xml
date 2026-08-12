@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Play Games signs in over the network, so this is needed in every build
+         and not only in debug. The debug manifest declares it too, for the
+         Flutter tool's own connection, which is exactly why its absence here
+         is easy to miss: sign in works all through development and then fails
+         in the one build that ships. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Pitchpole"
         android:name="${applicationName}"

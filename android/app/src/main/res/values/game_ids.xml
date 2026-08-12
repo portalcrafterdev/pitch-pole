@@ -8,7 +8,8 @@
   rather than merely failing to sign in.
 
   The value below is a placeholder, so the game launches and everything except
-  sign in works. To make sign in actually work:
+  sign in works. docs/play-games-setup.md walks through the whole job with the
+  console screens named; the short version is:
 
     1. Play Console -> your app -> Grow -> Play Games Services -> Setup.
     2. Create a Play Games Services project. It gives you a project number,
@@ -17,10 +18,23 @@
        com.portalcrafter.pitchpole and the SHA-1 of the keystore the build is
        signed with. The debug keystore and the release keystore are different,
        so both need a credential or sign in will only work on one of them.
-       The debug keystore's SHA-1 is
-       E7:D0:A5:6A:71:AC:89:FF:B8:D6:74:54:D2:2A:7A:BE:56:92:EA:A8
-       on the machine this was set up on; every machine has its own, so a
-       second developer needs their own credential too.
+
+       Every machine generates its own debug keystore the first time it builds
+       for Android, so this is per developer rather than per project. Read the
+       one for the machine you are on with:
+
+         keytool -list -v -keystore ~/.android/debug.keystore \
+           -alias androiddebugkey -storepass android -keypass android
+
+       Known debug certificates so far:
+         58:59:5B:4C:80:AF:98:F6:EF:4E:52:21:A0:41:43:F4:C6:DF:CB:AF
+         E7:D0:A5:6A:71:AC:89:FF:B8:D6:74:54:D2:2A:7A:BE:56:92:EA:A8
+
+       Note that release builds currently sign with the debug keystore too,
+       because android/app/build.gradle.kts has no release signing config yet.
+       Once it gets one, that certificate needs a credential of its own, and
+       an app shipped through Play App Signing needs the SHA-1 Google shows
+       under Setup -> App integrity rather than the local one.
     3b. Add your own Google account to the Testers list on the Play Games
        Services project. Until the project is published, sign in fails for
        anybody not on that list even when everything above is correct.

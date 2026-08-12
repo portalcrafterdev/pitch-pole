@@ -34,6 +34,52 @@ void main() {
           reason: 'not being signed in is not an error to report');
     });
 
+    test('backing out of the platform screen does not leave it spinning',
+        () async {
+      // Observed on an Android emulator: tapping sign in opens Play Games'
+      // own screen, and backing out of that never completes the call the
+      // button is waiting on. The button sat reading SIGNING IN with a
+      // spinner in it, which is indistinguishable from the game having hung,
+      // and it stayed that way until the five minute timeout.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await gamesAuth.load();
+
+      // Not awaited: this is the call that never answers.
+      final pending = gamesAuth.signIn();
+      expect(gamesAuth.isBusy, isTrue, reason: 'the button is spinning');
+
+      // Coming back to the front is the game's only signal that the platform
+      // screen has closed.
+      await gamesAuth.resolvePendingSignIn();
+
+      expect(gamesAuth.isBusy, isFalse,
+          reason: 'the spinner has to stop when the screen closes');
+      expect(gamesAuth.isSignedIn, isFalse);
+      expect(gamesAuth.lastError, isNotNull,
+          reason: 'and it has to say why, rather than silently doing nothing');
+
+      await pending;
+    });
+
+    test('resolving does nothing when no sign in is in flight', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await gamesAuth.load();
+
+      // Read rather than assumed to be null. GamesAuth is a singleton and
+      // `forget` does not clear the last error, so whatever ran before this
+      // may have left one behind.
+      final before = gamesAuth.lastError;
+
+      // Every return to the front calls this, so the overwhelmingly common
+      // case by far is that there is nothing to settle.
+      await gamesAuth.resolvePendingSignIn();
+
+      expect(gamesAuth.isBusy, isFalse);
+      expect(gamesAuth.isSignedIn, isFalse);
+      expect(gamesAuth.lastError, before,
+          reason: 'opening the app must never invent a sign in failure');
+    });
+
     test('a failed sign in leaves the player signed out with a reason',
         () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
