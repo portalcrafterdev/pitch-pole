@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 
 import '../../ui/palette.dart';
 import '../logic/physics.dart';
+import '../scene_theme.dart';
 
 /// The forest behind the run: two receding tree lines, light coming down
 /// through the leaves, low mist and a few fireflies.
@@ -17,7 +18,12 @@ import '../logic/physics.dart';
 /// long the level is. Every shape is rolled once from a fixed seed, so it is
 /// the same forest on every run and on every device.
 class ParallaxBackdrop extends PositionComponent {
-  ParallaxBackdrop() : super(priority: -20);
+  ParallaxBackdrop({this.theme = SceneTheme.forest}) : super(priority: -20);
+
+  /// Which place this level is set in. Everything drawn here takes its colour
+  /// from this rather than from [Palette] directly, so a level in the snow is
+  /// the same forest geometry in a different coat.
+  final SceneTheme theme;
 
   /// World x at the left edge of the view. The game sets this every frame.
   double scrollX = 0;
@@ -39,6 +45,7 @@ class ParallaxBackdrop extends PositionComponent {
   static const double _mistSpan = 900;
 
   late final List<_Tree> _far = _grow(
+    coniferBias: theme.coniferBias,
     seed: 3,
     count: 16,
     span: _farSpan,
@@ -49,6 +56,7 @@ class ParallaxBackdrop extends PositionComponent {
   );
 
   late final List<_Tree> _mid = _grow(
+    coniferBias: theme.coniferBias,
     seed: 17,
     count: 9,
     span: _midSpan,
@@ -70,23 +78,24 @@ class ParallaxBackdrop extends PositionComponent {
   late final List<_Bird> _birds = _flock(seed: 67, count: 6);
   late final List<_Cloud> _clouds = _sky(seed: 83, count: 6);
   late final List<_Moth> _moths = _mothsIn(seed: 71, count: 7);
+  late final List<_Star> _stars = _constellation(seed: 97, count: 26);
 
   final Paint _wash = Paint();
-  final Paint _farPaint = Paint()..color = Palette.canopyFar;
-  final Paint _midPaint = Paint()..color = Palette.canopyMid;
-  final Paint _trunkPaint = Paint()..color = Palette.trunk;
+  late final Paint _farPaint = Paint()..color = theme.canopyFar;
+  late final Paint _midPaint = Paint()..color = theme.canopyMid;
+  late final Paint _trunkPaint = Paint()..color = theme.trunk;
   final Paint _shaftPaint = Paint();
   final Paint _mistPaint = Paint();
   final Paint _fireflyPaint = Paint();
   final Paint _wildlifePaint = Paint();
   final Paint _cloudPaint = Paint();
   final Paint _mothPaint = Paint();
-  final Paint _antlerPaint = Paint()
-    ..color = Palette.wildlife
+  late final Paint _antlerPaint = Paint()
+    ..color = theme.wildlife
     ..strokeWidth = 1
     ..style = PaintingStyle.stroke;
-  final Paint _birdPaint = Paint()
-    ..color = Palette.wildlife
+  late final Paint _birdPaint = Paint()
+    ..color = theme.wildlife
     ..strokeWidth = 1
     ..strokeCap = StrokeCap.round
     ..style = PaintingStyle.stroke;
@@ -99,6 +108,7 @@ class ParallaxBackdrop extends PositionComponent {
     required double maxHeight,
     required double minWidth,
     required double maxWidth,
+    required double coniferBias,
   }) {
     final random = Random(seed);
     return List.generate(count, (i) {
@@ -108,7 +118,7 @@ class ParallaxBackdrop extends PositionComponent {
         x: (i + random.nextDouble() * 0.8 - 0.4) * (span / count),
         width: minWidth + random.nextDouble() * (maxWidth - minWidth),
         height: minHeight + random.nextDouble() * (maxHeight - minHeight),
-        conifer: random.nextBool(),
+        conifer: random.nextDouble() < coniferBias,
       );
     });
   }
@@ -197,6 +207,20 @@ class ParallaxBackdrop extends PositionComponent {
     });
   }
 
+  static List<_Star> _constellation({required int seed, required int count}) {
+    final random = Random(seed);
+    const ceiling = kCeilingSurfaceY - kBlockThickness;
+    return List.generate(count, (i) {
+      return _Star(
+        x: random.nextDouble() * kCanvasWidth,
+        y: 3 + random.nextDouble() * (ceiling - 8),
+        radius: 0.5 + random.nextDouble() * 0.8,
+        rate: 0.4 + random.nextDouble() * 1.1,
+        phase: random.nextDouble() * 2 * pi,
+      );
+    });
+  }
+
   static List<_Firefly> _swarm({required int seed, required int count}) {
     final random = Random(seed);
     return List.generate(count, (i) {
@@ -224,7 +248,7 @@ class ParallaxBackdrop extends PositionComponent {
     _wash.shader = Gradient.linear(
       const Offset(0, kCeilingSurfaceY),
       const Offset(0, kFloorSurfaceY),
-      const [Palette.bandHigh, Palette.bandLow],
+      [theme.bandHigh, theme.bandLow],
     );
     canvas.drawRect(
       const Rect.fromLTWH(0, kCeilingSurfaceY, kCanvasWidth, kBandHeight),
@@ -238,7 +262,7 @@ class ParallaxBackdrop extends PositionComponent {
     _renderTrees(canvas, _mid, _midFactor, _midSpan, _midPaint, _trunkPaint);
     _renderMist(canvas);
     _renderMoths(canvas);
-    _renderFireflies(canvas);
+    _renderMotes(canvas);
   }
 
   /// Open sky above the canopy, with clouds drifting across it.
@@ -252,13 +276,25 @@ class ParallaxBackdrop extends PositionComponent {
     _wash.shader = Gradient.linear(
       const Offset(0, 0),
       const Offset(0, skyBottom),
-      const [Palette.skyHigh, Palette.skyLow],
+      [theme.skyHigh, theme.skyLow],
     );
     canvas.drawRect(
       const Rect.fromLTWH(0, 0, kCanvasWidth, skyBottom),
       _wash,
     );
     _wash.shader = null;
+
+    if (theme.stars) {
+      for (final star in _stars) {
+        // Twinkle by brightness only. A star that moved would read as
+        // something in the level rather than as something a very long way off.
+        final twinkle = 0.55 + 0.45 * sin(_t * star.rate + star.phase);
+        _cloudPaint.color = Palette.cloud.withValues(alpha: 0.25 + 0.5 * twinkle);
+        canvas.drawCircle(Offset(star.x, star.y), star.radius, _cloudPaint);
+      }
+    }
+
+    if (!theme.clouds) return;
 
     // Clouds drift on their own, slowly, and wrap well outside the view.
     for (final cloud in _clouds) {
@@ -302,8 +338,9 @@ class ParallaxBackdrop extends PositionComponent {
   /// than as something coming towards the player. Drawn between the far and
   /// mid tree lines so the nearer trees pass in front of them.
   void _renderDeer(Canvas canvas) {
+    if (!theme.deer) return;
     final offset = (scrollX * _farFactor) % _farSpan;
-    _wildlifePaint.color = Palette.wildlife;
+    _wildlifePaint.color = theme.wildlife;
     for (final deer in _deer) {
       final x = deer.x - offset;
       _drawDeer(canvas, x, deer);
@@ -392,7 +429,7 @@ class ParallaxBackdrop extends PositionComponent {
   /// Birds crossing behind the trees. They live in the view and wrap round, so
   /// there is always one somewhere without ever needing more than a handful.
   void _renderBirds(Canvas canvas) {
-    _wildlifePaint.color = Palette.wildlife;
+    _wildlifePaint.color = theme.wildlife;
     for (final bird in _birds) {
       // Drifting leftwards, wrapped well outside the view so one never pops
       // into existence in front of the player.
@@ -424,7 +461,7 @@ class ParallaxBackdrop extends PositionComponent {
           sin(_t * moth.rate * 1.7 + moth.phase * 1.3) * moth.drift * 0.35;
       // Flutter comes from the width, not from the brightness.
       final open = 0.55 + 0.45 * sin(_t * 9 + moth.phase).abs();
-      _mothPaint.color = Palette.moth.withValues(alpha: 0.11);
+      _mothPaint.color = theme.mist.withValues(alpha: 0.11);
       canvas.drawOval(
         Rect.fromCenter(
           center: Offset(x, y),
@@ -512,7 +549,7 @@ class ParallaxBackdrop extends PositionComponent {
   void _renderShafts(Canvas canvas) {
     for (var i = 0; i < 3; i++) {
       final x = 90.0 + i * 190;
-      _shaftPaint.color = Palette.shaft.withValues(alpha: 0.030 - i * 0.006);
+      _shaftPaint.color = theme.shaft.withValues(alpha: 0.030 - i * 0.006);
       canvas.drawPath(
         Path()
           ..moveTo(x, kCeilingSurfaceY)
@@ -527,7 +564,7 @@ class ParallaxBackdrop extends PositionComponent {
 
   void _renderMist(Canvas canvas) {
     final offset = (scrollX * _mistFactor) % _mistSpan;
-    _mistPaint.color = Palette.mist.withValues(alpha: 0.05);
+    _mistPaint.color = theme.mist.withValues(alpha: theme.mistAlpha);
     for (final drift in _mist) {
       final wander = sin(_t * drift.rate + drift.x) * 6;
       final x = drift.x - offset + wander;
@@ -544,16 +581,57 @@ class ParallaxBackdrop extends PositionComponent {
     }
   }
 
-  /// Fireflies hang in the view rather than in the world, so a stretch with
-  /// nothing in it still has something moving in it.
-  void _renderFireflies(Canvas canvas) {
+  /// The specks in the band. They hang in the view rather than in the world,
+  /// so a stretch of track with nothing in it still has something moving in it.
+  ///
+  /// One set of positions, drawn four ways. What separates a firefly from a
+  /// snowflake here is how it moves and whether it pulses, which is enough:
+  /// they are two pixels across.
+  void _renderMotes(Canvas canvas) {
+    const bandTop = kCeilingSurfaceY + 4;
+    const bandSpan = kBandHeight - 8;
+
     for (final fly in _fireflies) {
-      final pulse = 0.5 + 0.5 * sin(_t * fly.rate * 2 + fly.phase);
-      final x = fly.x + sin(_t * fly.rate * 0.7 + fly.phase) * fly.drift;
-      final y = fly.y + cos(_t * fly.rate * 0.5 + fly.phase) * fly.drift * 0.4;
-      _fireflyPaint.color =
-          Palette.firefly.withValues(alpha: 0.10 + 0.28 * pulse);
-      canvas.drawCircle(Offset(x, y), fly.radius, _fireflyPaint);
+      switch (theme.motes) {
+        case Motes.fireflies:
+          final pulse = 0.5 + 0.5 * sin(_t * fly.rate * 2 + fly.phase);
+          final x = fly.x + sin(_t * fly.rate * 0.7 + fly.phase) * fly.drift;
+          final y =
+              fly.y + cos(_t * fly.rate * 0.5 + fly.phase) * fly.drift * 0.4;
+          _fireflyPaint.color =
+              theme.mote.withValues(alpha: 0.10 + 0.28 * pulse);
+          canvas.drawCircle(Offset(x, y), fly.radius, _fireflyPaint);
+
+        case Motes.snow:
+          // Falls and wraps inside the band, swaying as it goes.
+          final fall = (fly.y - bandTop + _t * (7 + fly.rate * 9)) % bandSpan;
+          final x = fly.x + sin(_t * fly.rate + fly.phase) * fly.drift * 0.7;
+          _fireflyPaint.color = theme.mote.withValues(alpha: 0.5);
+          canvas.drawCircle(
+            Offset(x, bandTop + fall),
+            fly.radius * 1.2,
+            _fireflyPaint,
+          );
+
+        case Motes.rain:
+          // Fast, straight, and drawn as a streak rather than a dot, which is
+          // the whole difference between rain and snow at this size.
+          final fall = (fly.y - bandTop + _t * 150) % bandSpan;
+          final x = fly.x + fly.drift * 0.1;
+          _fireflyPaint.color = theme.mote.withValues(alpha: 0.30);
+          canvas.drawRect(
+            Rect.fromLTWH(x, bandTop + fall, 0.9, 6 + fly.radius * 3),
+            _fireflyPaint,
+          );
+
+        case Motes.dust:
+          // Drifts sideways on the wind and never pulses.
+          final x = fly.x + sin(_t * fly.rate * 0.5 + fly.phase) * fly.drift;
+          final y =
+              fly.y + cos(_t * fly.rate * 0.3 + fly.phase) * fly.drift * 0.5;
+          _fireflyPaint.color = theme.mote.withValues(alpha: 0.16);
+          canvas.drawCircle(Offset(x, y), fly.radius * 0.9, _fireflyPaint);
+      }
     }
   }
 }
@@ -661,6 +739,22 @@ class _Moth {
   final double rate;
   final double phase;
   final double drift;
+}
+
+class _Star {
+  const _Star({
+    required this.x,
+    required this.y,
+    required this.radius,
+    required this.rate,
+    required this.phase,
+  });
+
+  final double x;
+  final double y;
+  final double radius;
+  final double rate;
+  final double phase;
 }
 
 class _Firefly {

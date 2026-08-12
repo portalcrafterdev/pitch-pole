@@ -171,6 +171,37 @@ void main() {
           reason: 'coming back to the menu takes the bed back');
     });
 
+    test('the saved volumes are on the player before the first note',
+        () async {
+      // Reported from a real session: the sliders came back showing the
+      // reduced levels, but the game played at full until one of them was
+      // touched. The setting was being read for the display and not put on
+      // the player, so the menu bed opened at full volume every launch.
+      await progressStore.setSoundVolume(0.3);
+      await progressStore.setMusicVolume(0.15);
+
+      await MenuAudio.instance.start();
+
+      expect(MenuAudio.instance.debugPlayer.soundVolume, 0.3);
+      expect(MenuAudio.instance.debugPlayer.musicVolume, 0.15,
+          reason: 'the bed has to start at the saved level, not drop to it '
+              'when the slider is next moved');
+    });
+
+    test('a later change to the volume still reaches the player', () async {
+      // The guard against fixing the above by syncing in the wrong place: the
+      // change handler compares the two values to decide whether to move a
+      // loop that is already playing, so a sync there would make them always
+      // equal and nothing would ever move.
+      await progressStore.setMusicVolume(0.9);
+      await MenuAudio.instance.start();
+
+      await progressStore.setMusicVolume(0.2);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(MenuAudio.instance.debugPlayer.musicVolume, 0.2);
+    });
+
     test('turning music off in the settings stops the menu bed', () async {
       await MenuAudio.instance.start();
       expect(SoundPlayer.debugMusicOwner, isNotNull);

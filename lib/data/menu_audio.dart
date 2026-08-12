@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../game/sound.dart';
 import 'progress_store.dart';
 
@@ -39,6 +41,17 @@ class MenuAudio {
   Future<void> start() async {
     _readSettings();
 
+    // The stored music level, put on the player *before* the loop starts.
+    //
+    // Without this the bed began at full volume every launch and only dropped
+    // to the saved level once the slider was touched, which reads as the
+    // setting having been forgotten: the slider showed the right number while
+    // the game played the wrong one. It is deliberately not in
+    // [_readSettings], which runs again on every settings change and compares
+    // the two values to decide whether to move a loop that is already
+    // playing; syncing it there would make that comparison always equal.
+    _player.musicVolume = progressStore.musicVolume;
+
     if (!_listening) {
       _listening = true;
       progressStore.addListener(_onSettingsChanged);
@@ -53,6 +66,11 @@ class MenuAudio {
 
   /// Stops the bed. Only used when the player turns music off.
   Future<void> stop() => _player.stopMusic();
+
+  /// Test seam: the player the menus drive, to check what the settings put on
+  /// it without reaching an audio device.
+  @visibleForTesting
+  SoundPlayer get debugPlayer => _player;
 
   /// The blip under a button.
   ///

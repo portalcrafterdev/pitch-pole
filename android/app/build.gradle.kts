@@ -55,6 +55,15 @@ android {
 
     buildTypes {
         release {
+            // Flutter shrinks release builds, and R8 renames anything it
+            // cannot see being used. Several of the SDKs here are looked up by
+            // name at runtime, which R8 has no way of knowing: without these
+            // rules the app builds, installs, and dies on launch.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+
             signingConfig = if (keystoreProperties.isEmpty) {
                 // No credentials on this machine. Still builds, so a fresh
                 // clone and `flutter run --release` both work, but what comes

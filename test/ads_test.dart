@@ -42,6 +42,39 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     });
 
+    test('breaks are rationed rather than taken every time one is offered',
+        () async {
+      // showAtBreak is called at the start of every level, on every life lost
+      // and when the last one goes. Losing a life is the most common thing
+      // that happens in a runner, so without a cap a bad run on a short level
+      // produced an ad roughly every fifteen seconds.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        adsController.clock = DateTime.now;
+      });
+
+      var now = DateTime(2026, 8, 12, 12);
+      adsController.clock = () => now;
+
+      // Nothing is loaded under test, so this stands in for the moment one
+      // was shown and dismissed.
+      adsController.debugMarkBreakTaken();
+
+      expect(await adsController.showAtBreak(), isFalse,
+          reason: 'straight after one, another is not due');
+
+      now = now.add(AdsController.minimumGap - const Duration(seconds: 1));
+      expect(await adsController.showAtBreak(), isFalse,
+          reason: 'and still not a second before the gap is up');
+
+      now = now.add(const Duration(seconds: 2));
+      // Past the gap the ration no longer blocks it. There is still no ad
+      // loaded in a test, so this returns false for the other reason, and
+      // what is being checked is that it got as far as looking.
+      expect(adsController.debugBreakIsDue, isTrue);
+    });
+
     test('a platform with no ads at all says so rather than throwing',
         () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;

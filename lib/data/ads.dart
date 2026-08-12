@@ -71,6 +71,42 @@ class AdsController extends ChangeNotifier {
   /// cannot stack one on top of the other.
   bool _showing = false;
 
+  /// When the last interstitial was dismissed, so the next one can be made to
+  /// wait.
+  DateTime? _lastBreak;
+
+  /// The least time between two interstitials.
+  ///
+  /// Without this there is one at the start of every level and one for every
+  /// life lost, and losing a life is the single most common thing that happens
+  /// in a runner. Playing badly on a short level therefore produced an ad
+  /// roughly every fifteen seconds, which is both miserable and, for a game
+  /// listed to an audience that includes children, a policy problem.
+  ///
+  /// A cap here rather than at each call site on purpose: the call sites are
+  /// the honest description of where a break *could* go, and this is the one
+  /// place that decides how often one is actually taken.
+  static const Duration minimumGap = Duration(seconds: 100);
+
+  /// Test seam: what the controller thinks the time is.
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  /// Whether enough time has passed since the last interstitial.
+  bool get _breakIsDue {
+    final last = _lastBreak;
+    return last == null || clock().difference(last) >= minimumGap;
+  }
+
+  /// Test seam: whether the ration would allow a break right now.
+  @visibleForTesting
+  bool get debugBreakIsDue => _breakIsDue;
+
+  /// Test seam: records a break as having just happened, without an ad and
+  /// without a platform to show one on.
+  @visibleForTesting
+  void debugMarkBreakTaken() => _lastBreak = clock();
+
   /// Android and iOS are the only platforms the game ships on.
   bool get isSupported =>
       defaultTargetPlatform == TargetPlatform.android ||
@@ -185,6 +221,10 @@ class AdsController extends ChangeNotifier {
   Future<bool> showAtBreak() async {
     if (!isSupported || _showing) return false;
 
+    // Too soon after the last one. The loaded ad is kept rather than burnt, so
+    // the next break that is actually due still has something to show.
+    if (!_breakIsDue) return false;
+
     final ad = _interstitial;
     if (ad == null) {
       // Nothing to show, so nothing to wait for. Line one up for next time.
@@ -203,6 +243,9 @@ class AdsController extends ChangeNotifier {
     void finish(InterstitialAd shown) {
       shown.dispose();
       _showing = false;
+      // Timed from when it closed rather than from when it opened, so a long
+      // ad does not eat into the quiet that is supposed to follow it.
+      _lastBreak = clock();
       preload();
       notifyListeners();
       if (!closed.isCompleted) closed.complete();

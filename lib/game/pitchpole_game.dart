@@ -23,6 +23,7 @@ import 'logic/level_model.dart';
 import 'logic/level_simulator.dart';
 import 'logic/physics.dart';
 import 'logic/run_state.dart';
+import 'scene_theme.dart';
 import 'sound.dart';
 
 /// Owns one level: the fixed step simulation, the scene, and the feel.
@@ -118,8 +119,11 @@ class PitchpoleGame extends FlameGame {
     unawaited(_sound.preload());
     unawaited(_sound.startMusic());
 
-    _backdrop = ParallaxBackdrop();
-    _strip = SurfaceStrip();
+    // The place this level is set in, derived from its number so it is fixed
+    // for that level forever and costs the level pack nothing.
+    final theme = SceneTheme.forLevel(level.id);
+    _backdrop = ParallaxBackdrop(theme: theme);
+    _strip = SurfaceStrip(theme: theme);
     camera.backdrop.addAll([_backdrop, _strip]);
 
     for (final enemy in level.bolted) {

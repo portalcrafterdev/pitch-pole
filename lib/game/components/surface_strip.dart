@@ -3,8 +3,8 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
-import '../../ui/palette.dart';
 import '../logic/physics.dart';
+import '../scene_theme.dart';
 
 /// The two surfaces: mossy forest floor below, leaf canopy above.
 ///
@@ -13,7 +13,12 @@ import '../logic/physics.dart';
 /// once from a fixed seed and repeat over one span, so the ground looks the
 /// same every run without storing anything per level.
 class SurfaceStrip extends PositionComponent {
-  SurfaceStrip() : super(priority: -10);
+  SurfaceStrip({this.theme = SceneTheme.forest}) : super(priority: -10);
+
+  /// The place this level is set in. The floor of a winter level is frozen
+  /// ground under snow rather than earth under moss, and it has to agree with
+  /// the backdrop behind it or the two read as different worlds.
+  final SceneTheme theme;
 
   /// World x at the left edge of the view. The game sets this every frame.
   double scrollX = 0;
@@ -31,15 +36,15 @@ class SurfaceStrip extends PositionComponent {
   late final List<_Rock> _rocks = _scatter(seed: 23, count: 16);
   late final List<_Lobe> _crownLobes = _crownline(seed: 31, count: 30);
 
-  final Paint _earth = Paint()..color = Palette.earth;
-  final Paint _canopy = Paint()..color = Palette.canopy;
-  final Paint _mossCap = Paint()..color = Palette.mossDark;
-  final Paint _mossEdge = Paint()..color = Palette.moss;
-  final Paint _leafEdge = Paint()..color = Palette.canopyMid;
-  final Paint _blade = Paint()..color = Palette.moss;
-  final Paint _rock = Paint()..color = Palette.earthDark;
-  final Paint _subsoil = Paint()..color = Palette.earthDark;
-  final Paint _crown = Paint()..color = Palette.canopyMid;
+  late final Paint _earth = Paint()..color = theme.earth;
+  late final Paint _canopy = Paint()..color = theme.canopy;
+  late final Paint _mossCap = Paint()..color = theme.mossDark;
+  late final Paint _mossEdge = Paint()..color = theme.moss;
+  late final Paint _leafEdge = Paint()..color = theme.canopyMid;
+  late final Paint _blade = Paint()..color = theme.moss;
+  late final Paint _rock = Paint()..color = theme.earthDark;
+  late final Paint _subsoil = Paint()..color = theme.earthDark;
+  late final Paint _crown = Paint()..color = theme.canopyMid;
 
   static List<_Blade> _sow({
     required int seed,
@@ -181,8 +186,8 @@ class SurfaceStrip extends PositionComponent {
     final root = up ? kFloorSurfaceY : kCeilingSurfaceY;
     final direction = up ? -1.0 : 1.0;
     _blade.color = up
-        ? Palette.moss.withValues(alpha: 0.55)
-        : Palette.moss.withValues(alpha: 0.28);
+        ? theme.moss.withValues(alpha: 0.55)
+        : theme.moss.withValues(alpha: 0.28);
 
     for (final blade in blades) {
       final x = blade.x - offset;
