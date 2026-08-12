@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/menu_audio.dart';
 import '../../data/progress_store.dart';
-import '../palette.dart';
+import '../menu_palette.dart';
 import '../widgets/volume_row.dart';
 import 'overlay_panel.dart';
 
@@ -28,6 +29,7 @@ class PauseMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return OverlayPanel(
       title: 'Paused',
+      accent: MenuPalette.levels,
       subtitle: 'Level $levelId, ${seconds.toStringAsFixed(0)} seconds of '
           'running.',
       // Tapping the screen around the panel resumes, the same as the button.
@@ -39,17 +41,21 @@ class PauseMenu extends StatelessWidget {
           label: 'RESUME',
           icon: Icons.play_arrow_rounded,
           filled: true,
-          accent: Palette.door,
+          accent: MenuPalette.play,
           onPressed: onResume,
         ),
         PanelButton(
           label: 'RESTART LEVEL',
           icon: Icons.refresh_rounded,
+          filled: true,
+          accent: MenuPalette.friend,
           onPressed: onRestart,
         ),
         PanelButton(
           label: 'LEVELS',
           icon: Icons.grid_view_rounded,
+          filled: true,
+          accent: MenuPalette.levels,
           onPressed: onLevels,
         ),
       ],
@@ -60,7 +66,7 @@ class PauseMenu extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _ControlSchemeToggle(),
-          SizedBox(height: 16),
+          SizedBox(height: 12),
           _AudioToggles(),
         ],
       ),
@@ -81,7 +87,7 @@ class _ControlSchemeToggle extends StatelessWidget {
           const Text(
             'CONTROLS',
             style: TextStyle(
-              color: Palette.textMuted,
+              color: MenuPalette.inkSoft,
               fontSize: 10,
               letterSpacing: 2,
               fontWeight: FontWeight.w700,
@@ -126,7 +132,7 @@ class _AudioToggles extends StatelessWidget {
           const Text(
             'AUDIO',
             style: TextStyle(
-              color: Palette.textMuted,
+              color: MenuPalette.inkSoft,
               fontSize: 10,
               letterSpacing: 2,
               fontWeight: FontWeight.w700,
@@ -172,18 +178,28 @@ class _SchemeChip extends StatelessWidget {
     final label = scheme == ControlScheme.halves ? 'HALVES' : 'BUTTONS';
     return Material(
       color: selected
-          ? Palette.door.withValues(alpha: 0.16)
+          ? MenuPalette.levels.withValues(alpha: 0.16)
           : Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => progressStore.setControlScheme(scheme),
+        onTap: () {
+          MenuAudio.instance.tap();
+          progressStore.setControlScheme(scheme);
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Palette.door.withValues(alpha: selected ? 0.55 : 0.16),
+              // The unselected edge is grey rather than a faded accent. On the
+              // dark panel this used to sit on, a 16% accent was visible; on
+              // white it is not there at all, and a chip with no visible edge
+              // does not read as something you can press.
+              color: selected
+                  ? MenuPalette.levels
+                  : MenuPalette.inkSoft.withValues(alpha: 0.35),
+              width: selected ? 2 : 1.5,
             ),
           ),
           child: Row(
@@ -194,13 +210,13 @@ class _SchemeChip extends StatelessWidget {
                     ? Icons.vertical_split_rounded
                     : Icons.gamepad_rounded,
                 size: 15,
-                color: selected ? Palette.door : Palette.textMuted,
+                color: selected ? MenuPalette.levels : MenuPalette.inkSoft,
               ),
               const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? Palette.door : Palette.textMuted,
+                  color: selected ? MenuPalette.levels : MenuPalette.inkSoft,
                   fontSize: 12,
                   letterSpacing: 1,
                   fontWeight: FontWeight.w700,

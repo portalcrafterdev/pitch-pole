@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../palette.dart';
+import '../menu_palette.dart';
 
 /// Three stars, earned ones filled. [animate] pops them in one after another.
 class StarRow extends StatelessWidget {
@@ -24,9 +24,12 @@ class StarRow extends StatelessWidget {
         final star = Icon(
           earned ? Icons.star_rounded : Icons.star_outline_rounded,
           size: size,
+          // Every surface a star lands on is a white card now, so an unearned
+          // one is drawn in ink rather than in the muted green that was picked
+          // to sit on a near black panel.
           color: earned
-              ? Palette.star
-              : Palette.textMuted.withValues(alpha: 0.35),
+              ? MenuPalette.gold
+              : MenuPalette.inkSoft.withValues(alpha: 0.35),
         );
         return Padding(
           padding: EdgeInsets.symmetric(horizontal: size * 0.06),

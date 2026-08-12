@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../palette.dart';
+import '../menu_palette.dart';
 import '../widgets/confetti_fall.dart';
 import '../widgets/star_row.dart';
 import 'overlay_panel.dart';
@@ -41,7 +41,7 @@ class LevelComplete extends StatelessWidget {
       children: [
         OverlayPanel(
           title: 'Cleared',
-          accent: Palette.door,
+          accent: MenuPalette.play,
           subtitle: isBest
               ? 'New best: ${seconds.toStringAsFixed(1)}s'
               : '${seconds.toStringAsFixed(1)}s  ·  '
@@ -52,18 +52,22 @@ class LevelComplete extends StatelessWidget {
                 label: 'NEXT LEVEL',
                 icon: Icons.arrow_forward_rounded,
                 filled: true,
-                accent: Palette.door,
+                accent: MenuPalette.play,
                 onPressed: onNext,
               ),
             if (stars < 3)
               PanelButton(
                 label: 'RUN IT CLEAN',
                 icon: Icons.refresh_rounded,
+                filled: true,
+                accent: MenuPalette.friend,
                 onPressed: onRetry,
               ),
             PanelButton(
               label: 'LEVELS',
               icon: Icons.grid_view_rounded,
+              filled: true,
+              accent: MenuPalette.levels,
               onPressed: onLevels,
             ),
           ],
@@ -105,13 +109,13 @@ class _CoinTally extends StatelessWidget {
         Icon(
           Icons.circle,
           size: 13,
-          color: swept ? Palette.coinCore : Palette.coin,
+          color: swept ? MenuPalette.goldDark : MenuPalette.gold,
         ),
         const SizedBox(width: 7),
         Text(
           swept ? 'Every coin  $coins/$total' : '$coins/$total coins',
           style: TextStyle(
-            color: swept ? Palette.coinCore : Palette.textMuted,
+            color: swept ? MenuPalette.goldDark : MenuPalette.inkSoft,
             fontSize: 13,
             fontWeight: FontWeight.w700,
             fontFeatures: const [FontFeature.tabularFigures()],

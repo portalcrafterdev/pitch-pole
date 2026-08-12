@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/ads.dart';
+import '../menu_palette.dart';
 import '../palette.dart';
 import 'overlay_panel.dart';
 
@@ -50,19 +51,21 @@ class LevelFailed extends StatelessWidget {
             label: 'WATCH AD FOR A LIFE',
             icon: Icons.favorite_rounded,
             filled: true,
-            accent: Palette.door,
+            accent: MenuPalette.play,
             onPressed: onExtraLife,
           ),
         PanelButton(
           label: 'RUN IT AGAIN',
           icon: Icons.refresh_rounded,
-          filled: !canRevive,
-          accent: Palette.bolted,
+          filled: true,
+          accent: MenuPalette.friend,
           onPressed: onRetry,
         ),
         PanelButton(
           label: 'LEVELS',
           icon: Icons.grid_view_rounded,
+          filled: true,
+          accent: MenuPalette.levels,
           onPressed: onLevels,
         ),
       ],

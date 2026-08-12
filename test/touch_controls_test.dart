@@ -160,6 +160,66 @@ void main() {
         reason: 'and go away again');
   });
 
+  group('the pause menu fits a landscape phone without scrolling', () {
+    // Pausing is done mid level to change one thing and get back to running.
+    // A panel that has to be scrolled to reach the buttons fails at that, and
+    // this one did: stacked in a single column it came to around 570 points in
+    // a viewport about 360 tall.
+    //
+    // Measured as "nothing to scroll" rather than "no overflow". The panel is
+    // deliberately still inside a scroll view, for the phone with the font
+    // size turned all the way up, so an overflow check would pass while the
+    // buttons sat below the fold.
+    const sizes = <String, Size>{
+      'iPhone SE': Size(667, 375),
+      'Pixel 7': Size(732, 360),
+      'short and wide': Size(900, 320),
+    };
+
+    for (final entry in sizes.entries) {
+      testWidgets('${entry.key} shows the whole panel', (tester) async {
+        tester.view.physicalSize = entry.value * 2;
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+
+        SharedPreferences.setMockInitialValues({});
+        await progressStore.load();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: PauseMenu(
+                levelId: 1,
+                seconds: 30,
+                onResume: () {},
+                onRestart: () {},
+                onLevels: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+
+        final position = tester.state<ScrollableState>(
+          find.byType(Scrollable),
+        ).position;
+        expect(position.maxScrollExtent, 0,
+            reason: 'the pause menu has ${position.maxScrollExtent} points '
+                'hidden below the fold at ${entry.value}');
+
+        // And every way out of the panel is actually on screen.
+        for (final label in ['RESUME', 'RESTART LEVEL', 'LEVELS']) {
+          expect(find.text(label), findsOneWidget);
+          final rect = tester.getRect(find.text(label));
+          expect(rect.bottom, lessThanOrEqualTo(entry.value.height),
+              reason: '$label is off the bottom at ${entry.value}');
+        }
+      });
+    }
+  });
+
   testWidgets('the pause menu switches the scheme live', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await progressStore.load();

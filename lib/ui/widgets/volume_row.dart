@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../palette.dart';
+import '../menu_palette.dart';
 
 /// One audio channel: a mute button and a level, on one line.
 ///
@@ -38,10 +38,12 @@ class VolumeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = on ? Palette.door : Palette.textMuted;
+    // Both places this appears are white cards now: the pause panel and the
+    // settings sheet. A track drawn in 12% white was invisible on both.
+    final accent = on ? MenuPalette.play : MenuPalette.inkSoft;
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: compact ? 2 : 4),
+      padding: EdgeInsets.symmetric(vertical: compact ? 1 : 4),
       child: Row(
         children: [
           // Bigger than it looks: the whole point is that muting is one tap
@@ -71,7 +73,7 @@ class VolumeRow extends StatelessWidget {
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 3,
                 activeTrackColor: accent,
-                inactiveTrackColor: Palette.text.withValues(alpha: 0.12),
+                inactiveTrackColor: MenuPalette.inkSoft.withValues(alpha: 0.25),
                 thumbColor: accent,
                 overlayColor: accent.withValues(alpha: 0.12),
                 thumbShape: RoundSliderThumbShape(
@@ -96,7 +98,7 @@ class VolumeRow extends StatelessWidget {
               '${(volume * 100).round()}',
               textAlign: TextAlign.right,
               style: TextStyle(
-                color: Palette.textMuted,
+                color: MenuPalette.inkSoft,
                 fontSize: compact ? 11 : 12,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../game/logic/run_state.dart';
 import '../../game/pitchpole_game.dart';
+import '../menu_palette.dart';
 import '../palette.dart';
 
 /// Top bar: elapsed time, level number, lives, pause.
@@ -17,67 +18,77 @@ class Hud extends StatelessWidget {
       valueListenable: game.stateNotifier,
       builder: (context, state, _) => Column(
         children: [
-          // A veil under the top row. The world behind it is a bright sky, and
-          // everything in the row is light text, so without this the muted
-          // items in particular wash out completely.
-          DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xD90A1410),
-                  Color(0xA30A1410),
-                  Color(0x000A1410),
-                ],
-                stops: [0, 0.55, 1],
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 12, 8),
-                child: Row(
-                  children: [
-                    Text(
-                      state.elapsed.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: Palette.text,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
+          // Pills rather than a dark veil across the top.
+          //
+          // The veil was there because light text over a bright sky washes
+          // out, and it worked, but it put a band of near black across the top
+          // quarter of a game that is otherwise a sunny forest. Each group
+          // carries its own white pill instead: the contrast is local to the
+          // text that needs it, the sky stays visible between them, and it is
+          // the same shape language as the menus.
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+              child: Row(
+                children: [
+                  _Pill(
+                    child: Row(
+                      children: [
+                        Text(
+                          state.elapsed.toStringAsFixed(1),
+                          style: const TextStyle(
+                            color: MenuPalette.ink,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'LEVEL ${game.level.id}',
+                          style: const TextStyle(
+                            color: MenuPalette.inkSoft,
+                            fontSize: 12,
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 14),
-                    Text(
-                      'LEVEL ${game.level.id}',
-                      style: TextStyle(
-                        // Not the muted colour the menus use: that was chosen
-                        // against a near black panel and disappears over sky.
-                        color: Palette.text.withValues(alpha: 0.82),
-                        fontSize: 12,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (game.level.coins.isNotEmpty) ...[
-                      _Coins(
+                  ),
+                  const Spacer(),
+                  if (game.level.coins.isNotEmpty) ...[
+                    _Pill(
+                      child: _Coins(
                         collected: state.coins,
                         total: game.level.coins.length,
                       ),
-                      const SizedBox(width: 14),
-                    ],
-                    _Lives(lives: state.lives),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      onPressed: onPause,
-                      icon: const Icon(Icons.pause_rounded),
-                      color: Palette.text.withValues(alpha: 0.82),
-                      tooltip: 'Pause',
                     ),
+                    const SizedBox(width: 8),
                   ],
-                ),
+                  _Pill(child: _Lives(lives: state.lives)),
+                  const SizedBox(width: 8),
+                  // A round slab, the same as the settings button on the home
+                  // screen. Pausing mid run is done in a hurry, so it gets a
+                  // target rather than a bare glyph over moving scenery.
+                  Material(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onPause,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.pause_rounded,
+                          color: MenuPalette.ink,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -92,6 +103,26 @@ class Hud extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A white lozenge, so a group of readings keeps its contrast wherever the
+/// level happens to be bright behind it.
+class _Pill extends StatelessWidget {
+  const _Pill({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: child,
     );
   }
 }
@@ -112,17 +143,17 @@ class _Coins extends StatelessWidget {
     return Row(
       children: [
         Icon(
-          Icons.circle,
-          size: 12,
-          color: complete ? Palette.coinCore : Palette.coin,
+          Icons.monetization_on_rounded,
+          size: 15,
+          color: complete ? MenuPalette.goldDark : MenuPalette.gold,
         ),
         const SizedBox(width: 6),
         Text(
           '$collected/$total',
           style: TextStyle(
-            color: complete ? Palette.coinCore : Palette.text,
+            color: complete ? MenuPalette.goldDark : MenuPalette.ink,
             fontSize: 14,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -151,7 +182,7 @@ class _Lives extends StatelessWidget {
               size: 18,
               color: alive
                   ? Palette.bolted
-                  : Palette.textMuted.withValues(alpha: 0.4),
+                  : MenuPalette.inkSoft.withValues(alpha: 0.3),
             ),
           ),
         );
@@ -185,17 +216,17 @@ class _ProgressBar extends StatelessWidget {
               alignment: Alignment.centerLeft,
               children: [
                 Container(
-                  height: 3,
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: Palette.text.withValues(alpha: 0.10),
+                    color: Colors.white.withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
                 Container(
-                  height: 3,
+                  height: 6,
                   width: constraints.maxWidth * progress,
                   decoration: BoxDecoration(
-                    color: Palette.door,
+                    color: MenuPalette.play,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -207,8 +238,8 @@ class _ProgressBar extends StatelessWidget {
                       height: checkpoint <= progress ? 10 : 7,
                       decoration: BoxDecoration(
                         color: checkpoint <= progress
-                            ? Palette.door
-                            : Palette.textMuted.withValues(alpha: 0.5),
+                            ? MenuPalette.play
+                            : Colors.white.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(1),
                       ),
                     ),
