@@ -1,5 +1,5 @@
 // Authoring tool. Draws the 32 achievement icons for the Play Console import
-// and writes them to store/achievements, plus the 4 leaderboard icons into
+// and writes them to store/achievements, plus the leaderboard icon into
 // store/leaderboards.
 //
 //   flutter test tool/make_achievement_icons.dart
@@ -27,6 +27,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitchpole/data/leaderboards.dart';
 import 'package:pitchpole/ui/menu_palette.dart';
 import 'package:pitchpole/ui/palette.dart';
 
@@ -129,17 +130,14 @@ const List<_Icon> _icons = [
   _Icon('stubborn', Glyph.heart, _grit, tier: 4, tiers: 4, crowned: true),
 ];
 
-/// The four leaderboards, drawn the same way and in the same five colours.
+/// The one leaderboard, drawn the same way and in the same palette.
 ///
-/// No tiers here — a board is not a step on a ladder — so each is a full ring,
-/// which reads as a complete badge rather than as a part-filled one. Levels
-/// swept takes the skill blue rather than the coin gold on purpose: it sits
-/// next to Coins Collected in the list, and the two reward opposite habits.
+/// No tier here — a board is not a step on a ladder — so it is a full ring,
+/// which reads as a complete badge rather than a part-filled one. Amber and a
+/// star, so the row in the account sheet matches the star pills the rest of
+/// the game already uses for the same number.
 const List<_Icon> _boardIcons = [
-  _Icon('levels_cleared', Glyph.door, _progress, tier: 1, tiers: 1),
   _Icon('stars_earned', Glyph.star, _mastery, tier: 1, tiers: 1),
-  _Icon('coins_collected', Glyph.coin, _coins, tier: 1, tiers: 1),
-  _Icon('levels_swept', Glyph.coin, _skill, tier: 1, tiers: 1),
 ];
 
 const String _boardDir = 'store/leaderboards';
@@ -160,16 +158,19 @@ void main() {
   });
 
   test('every leaderboard the game submits to has an icon', () {
-    // Play has no bulk import for leaderboards, so each board is created by
-    // hand in the console and each needs a 512 square icon at that moment.
-    // One missing is found halfway through filling in a form.
-    const keys = ['levels_cleared', 'stars_earned', 'coins_collected',
-        'levels_swept'];
+    // Play has no bulk import for leaderboards, so the board is created by
+    // hand in the console and needs a 512 square icon at that moment. Missing
+    // is found halfway through filling in a form.
+    //
+    // Read off [Lb] rather than a copy of it, so adding a board to the game
+    // without drawing its icon fails here rather than in the console.
     final drawn = {for (final icon in _boardIcons) icon.id};
-    for (final key in keys) {
-      expect(drawn, contains(key), reason: 'no icon for the $key board');
+    for (final board in Lb.all) {
+      expect(drawn, contains(board.key),
+          reason: 'no icon for the ${board.name} board');
     }
-    expect(drawn.length, keys.length);
+    expect(drawn.length, Lb.all.length,
+        reason: 'an icon is drawn for a board the game does not submit to');
   });
 
   test('draws every achievement icon', () async {

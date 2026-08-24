@@ -228,7 +228,7 @@ class SignInButton extends StatelessWidget {
                 title: const Text('Leaderboards',
                     style: TextStyle(color: Palette.text)),
                 subtitle: const Text(
-                  'Levels, stars, coins and levels swept.',
+                  'Stars earned, all time.',
                   style: TextStyle(color: Palette.textMuted, fontSize: 12),
                 ),
                 onTap: () {

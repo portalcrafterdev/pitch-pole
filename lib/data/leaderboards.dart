@@ -47,57 +47,39 @@ class LeaderboardSpec {
   bool get wired => platformId.isNotEmpty;
 }
 
-/// Every leaderboard the game submits to.
+/// Every leaderboard the game submits to. There is exactly one.
 ///
-/// There are four, and the number is small on purpose. Play allows seventy and
-/// most runners spend them on times, but **every level in this pack takes
-/// exactly 30 seconds** — length is `runSpeed * 30` by construction, and speed
-/// is fixed for the whole level — so a clean run of level 8,472 is 30.0 for
-/// every player alive. A time board here would be a wall of ties that quietly
-/// ranks people by how often they died, which is not what it would appear to
-/// measure. So all four are cumulative instead.
+/// Play allows seventy and most runners spend them on times, but **every level
+/// in this pack takes exactly 30 seconds** — length is `runSpeed * 30` by
+/// construction, and speed is fixed for the whole level — so a clean run of
+/// level 8,472 is 30.0 for every player alive. A time board here would be a
+/// wall of ties that quietly ranks people by how often they died, which is not
+/// what it would appear to measure.
 ///
-/// For the same reason only the all time span means anything. Play keeps the
-/// best score submitted in each window, so the daily board of a running total
-/// shows a veteran's lifetime figure on a day they did not play. The game
-/// opens the boards on [gs.TimeScope.allTime] and does not offer the others.
+/// What is left is cumulative totals, and stars is the one worth ranking: it
+/// counts progress and how cleanly it was made in a single number, so it says
+/// more than levels cleared and asks for more than coins. One board also keeps
+/// the whole feature honest — there is a single row in the account sheet and a
+/// single figure behind it, rather than a wall of near duplicates of the same
+/// progress.
+///
+/// Only the all time span means anything, so that is the only one offered.
+/// Play keeps the best score submitted in each window, so the daily board of a
+/// running total would show a veteran's lifetime figure on a day they did not
+/// play.
 abstract final class Lb {
-  /// Levels finished at all. The same number as the furthest level reached,
-  /// since a level only opens once the one before it is solved.
-  static const levelsCleared = LeaderboardSpec(
-    'levels_cleared',
-    'Levels Cleared',
-    max: 10000,
-  );
-
+  /// Stars held, out of three per level.
+  ///
+  /// Three for finishing with every life intact, two with one lost, one for
+  /// finishing at all — so the figure rises with both how far a player has got
+  /// and how well they got there.
   static const starsEarned = LeaderboardSpec(
     'stars_earned',
     'Stars Earned',
     max: 30000,
   );
 
-  static const coinsCollected = LeaderboardSpec(
-    'coins_collected',
-    'Coins Collected',
-    max: 467430,
-  );
-
-  /// Levels where every coin was taken on a single run.
-  ///
-  /// Kept apart from [coinsCollected] because the two reward opposite habits:
-  /// a big coin total can be had by breadth alone, and this cannot.
-  static const levelsSwept = LeaderboardSpec(
-    'levels_swept',
-    'Levels Swept',
-    max: 10000,
-  );
-
-  static const List<LeaderboardSpec> all = [
-    levelsCleared,
-    starsEarned,
-    coinsCollected,
-    levelsSwept,
-  ];
+  static const List<LeaderboardSpec> all = [starsEarned];
 }
 
 /// Submits totals to Play Games or Game Center, and opens the platform's own
@@ -166,16 +148,13 @@ class LeaderboardsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sends every board's current figure, read off [store].
+  /// Sends the board's current figure, read off [store].
   ///
-  /// Called when a level is cleared. All four are absolute totals rather than
-  /// deltas, because the game already knows the totals and a delta would drift
-  /// the moment a submission was lost or a level was replayed.
+  /// Called when a level is cleared. The star count is an absolute total
+  /// rather than a delta, because the game already knows the total and a delta
+  /// would drift the moment a submission was lost or a level was replayed.
   Future<void> submitTotals(ProgressStore store) async {
-    await submit(Lb.levelsCleared, store.solvedCount);
     await submit(Lb.starsEarned, store.totalStars);
-    await submit(Lb.coinsCollected, store.totalCoins);
-    await submit(Lb.levelsSwept, store.sweptCount);
   }
 
   /// Records [value] for [spec] and sends it if it is worth sending.
@@ -234,7 +213,7 @@ class LeaderboardsController extends ChangeNotifier {
   /// The game draws no board of its own. Play and Game Center each render the
   /// list, the time spans and the friends toggle themselves, which is both far
   /// less to build and the screen players already know. Passing no [spec]
-  /// shows the list of all four.
+  /// shows the list, which is the one board.
   Future<void> show({LeaderboardSpec? spec}) async {
     if (!gamesAuth.isSignedIn) return;
     try {

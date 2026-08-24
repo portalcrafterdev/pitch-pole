@@ -18,10 +18,12 @@ void main() {
   });
 
   group('the set the game submits to', () {
-    test('there are four, with unique keys', () {
-      expect(Lb.all.length, 4);
-      expect(Lb.all.map((b) => b.key).toSet().length, 4);
-      expect(Lb.all.map((b) => b.name).toSet().length, 4);
+    test('there is exactly one, and it is stars', () {
+      // One on purpose. The other candidates — levels cleared, coins, levels
+      // swept — are all near duplicates of the same progress, and a time board
+      // is impossible here: every level takes exactly 30.0 seconds, so it
+      // would rank players by how often they died.
+      expect(Lb.all, [Lb.starsEarned]);
     });
 
     test('every board is unwired until Play Console has been told', () {
@@ -37,30 +39,25 @@ void main() {
       }
     });
 
-    test('each caps at a figure the game can actually reach', () {
+    test('it caps at a figure the game can actually reach', () {
       // The cap is what the board's upper score limit should be set to in the
       // console, so a score above it can only be a tampered client. Wrong here
       // and a legitimate player is either clipped or a cheat goes unnoticed.
-      expect(Lb.levelsCleared.max, 10000);
-      expect(Lb.starsEarned.max, 30000, reason: '3 stars on every level');
-      expect(Lb.coinsCollected.max, 467430, reason: 'the pack was counted');
-      expect(Lb.levelsSwept.max, 10000);
+      expect(Lb.starsEarned.max, 30000,
+          reason: '3 stars on every one of 10,000 levels');
     });
   });
 
   group('submitting', () {
-    test('sends the totals off the store, not off the run', () async {
+    test('sends the total off the store, not off the run', () async {
+      // Three stars on one level and two on another is five, and five is what
+      // goes — not the three this run happened to earn.
       await progressStore.record(1, 3, 30, coins: 33, coinsOnLevel: 33);
       await progressStore.record(2, 2, 30, coins: 10, coinsOnLevel: 36);
 
       await controller.submitTotals(progressStore);
 
-      expect(controller.debugSubmitted, containsAll(<String>[
-        'levels_cleared:2',
-        'stars_earned:5',
-        'coins_collected:43',
-        'levels_swept:1',
-      ]));
+      expect(controller.debugSubmitted, ['stars_earned:5']);
     });
 
     test('a figure the platform already holds is not sent again', () async {
@@ -68,18 +65,18 @@ void main() {
       // the only thing that fills the sent map: a score is only crossed off
       // when the platform takes it, never when the game merely tried.
       SharedPreferences.setMockInitialValues({
-        'leaderboards.sent.levels_cleared': 5,
+        'leaderboards.sent.stars_earned': 5,
       });
       final resumed = LeaderboardsController();
       await resumed.load();
       resumed.debugSubmitted = [];
 
-      await resumed.submit(Lb.levelsCleared, 5);
+      await resumed.submit(Lb.starsEarned, 5);
       expect(resumed.debugSubmitted, isEmpty,
           reason: 'the platform already has 5, so there is nothing to say');
 
-      await resumed.submit(Lb.levelsCleared, 6);
-      expect(resumed.debugSubmitted, contains('levels_cleared:6'));
+      await resumed.submit(Lb.starsEarned, 6);
+      expect(resumed.debugSubmitted, contains('stars_earned:6'));
     });
 
     test('a score is clamped to what the game can produce', () async {
@@ -115,18 +112,18 @@ void main() {
     await progressStore.record(2, 3, 30);
     await controller.submitTotals(progressStore);
 
-    expect(controller.debugSubmitted, contains('levels_cleared:2'));
+    expect(controller.debugSubmitted, contains('stars_earned:6'));
 
     controller.debugSubmitted!.clear();
     await controller.flush();
-    expect(controller.debugSubmitted, contains('levels_cleared:2'),
+    expect(controller.debugSubmitted, contains('stars_earned:6'),
         reason: 'a score is only crossed off when the platform takes it, and '
             'signed out it never did — so it is all still owed, which is the '
             'whole point of the buffer');
   });
 
-  test('the boards cannot be opened without an account', () async {
-    // Signed out there is no board to show, so the row does not offer one.
+  test('the board cannot be opened without an account', () async {
+    // Signed out there is nothing to show, so the row does not offer it.
     expect(controller.canShow, isFalse);
   });
 }
