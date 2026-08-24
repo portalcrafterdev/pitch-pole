@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'data/achievements.dart';
 import 'data/ads.dart';
 import 'data/games_auth.dart';
+import 'data/leaderboards.dart';
 import 'data/menu_audio.dart';
 import 'data/progress_store.dart';
 import 'game/sound.dart';
@@ -34,6 +35,7 @@ Future<void> main() async {
   // earned while signed out is still owed to the player. Awaited because it is
   // a local read and the first level must not be able to finish before it.
   await achievements.load();
+  await leaderboards.load();
 
   // Not awaited. Reconnecting to Play Games or Game Center means a round trip
   // to the platform, and reaching the menu must never wait on a network. The

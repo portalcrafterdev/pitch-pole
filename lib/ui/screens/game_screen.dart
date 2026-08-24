@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../../data/achievement_rules.dart';
 import '../../data/achievements.dart';
 import '../../data/ads.dart';
+import '../../data/leaderboards.dart';
 import '../../data/level_repository.dart';
 import '../../data/progress_store.dart';
 import '../../game/logic/level_model.dart';
@@ -203,6 +204,12 @@ class _GameScreenState extends State<GameScreen> {
       progressStore,
       achievements,
     );
+
+    // Same standing as an achievement: a note sent after the fact, awaited by
+    // nothing on screen, and read by no part of a run. All four figures are
+    // taken off the store rather than off this run, so a replay of an old
+    // level submits the same totals as anything else.
+    await leaderboards.submitTotals(progressStore);
   }
 
   /// The last life went, which is the only failure the game has: an ordinary

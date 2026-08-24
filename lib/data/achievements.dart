@@ -439,6 +439,22 @@ class AchievementsController extends ChangeNotifier {
     }
   }
 
+  /// Opens the platform's own achievement list.
+  ///
+  /// The game draws none of its own, deliberately. Play and Game Center each
+  /// render the list, the locked ones and the progress bars already, and a
+  /// copy inside the game would be a second thing to keep true — and one that
+  /// would have to lie while signed out, since the platform is the only thing
+  /// that knows what it has accepted.
+  Future<void> show() async {
+    if (!gamesAuth.isSignedIn) return;
+    try {
+      await gs.Achievements.showAchievements();
+    } catch (error) {
+      debugPrint('Pitchpole: could not open the achievements ($error)');
+    }
+  }
+
   @visibleForTesting
   Future<void> debugReset() async {
     _earned.clear();

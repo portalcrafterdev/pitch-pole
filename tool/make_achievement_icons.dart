@@ -1,5 +1,6 @@
 // Authoring tool. Draws the 32 achievement icons for the Play Console import
-// and writes them to store/achievements.
+// and writes them to store/achievements, plus the 4 leaderboard icons into
+// store/leaderboards.
 //
 //   flutter test tool/make_achievement_icons.dart
 //
@@ -128,7 +129,49 @@ const List<_Icon> _icons = [
   _Icon('stubborn', Glyph.heart, _grit, tier: 4, tiers: 4, crowned: true),
 ];
 
+/// The four leaderboards, drawn the same way and in the same five colours.
+///
+/// No tiers here — a board is not a step on a ladder — so each is a full ring,
+/// which reads as a complete badge rather than as a part-filled one. Levels
+/// swept takes the skill blue rather than the coin gold on purpose: it sits
+/// next to Coins Collected in the list, and the two reward opposite habits.
+const List<_Icon> _boardIcons = [
+  _Icon('levels_cleared', Glyph.door, _progress, tier: 1, tiers: 1),
+  _Icon('stars_earned', Glyph.star, _mastery, tier: 1, tiers: 1),
+  _Icon('coins_collected', Glyph.coin, _coins, tier: 1, tiers: 1),
+  _Icon('levels_swept', Glyph.coin, _skill, tier: 1, tiers: 1),
+];
+
+const String _boardDir = 'store/leaderboards';
+
 void main() {
+  test('draws every leaderboard icon', () async {
+    final dir = Directory(_boardDir)..createSync(recursive: true);
+
+    for (final icon in _boardIcons) {
+      await _write('${dir.path}/${icon.file}', (canvas) => _draw(canvas, icon));
+    }
+
+    for (final icon in _boardIcons) {
+      final file = File('${dir.path}/${icon.file}');
+      expect(file.existsSync(), isTrue, reason: 'missing ${icon.file}');
+      expect(file.lengthSync(), greaterThan(0), reason: '${icon.file} is empty');
+    }
+  });
+
+  test('every leaderboard the game submits to has an icon', () {
+    // Play has no bulk import for leaderboards, so each board is created by
+    // hand in the console and each needs a 512 square icon at that moment.
+    // One missing is found halfway through filling in a form.
+    const keys = ['levels_cleared', 'stars_earned', 'coins_collected',
+        'levels_swept'];
+    final drawn = {for (final icon in _boardIcons) icon.id};
+    for (final key in keys) {
+      expect(drawn, contains(key), reason: 'no icon for the $key board');
+    }
+    expect(drawn.length, keys.length);
+  });
+
   test('draws every achievement icon', () async {
     final dir = Directory(_outDir)..createSync(recursive: true);
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/achievements.dart';
 import '../../data/games_auth.dart';
+import '../../data/leaderboards.dart';
 import '../../data/menu_audio.dart';
 import '../menu_palette.dart';
 import '../palette.dart';
@@ -215,6 +217,40 @@ class SignInButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
+              // Both open the platform's own screen. The game draws neither:
+              // Play and Game Center already render the boards and the
+              // achievement list, and a copy inside the game would be a second
+              // thing to keep true. They live here rather than on the home
+              // screen because there is nothing behind them signed out.
+              ListTile(
+                leading: const Icon(Icons.leaderboard_rounded,
+                    color: Palette.door),
+                title: const Text('Leaderboards',
+                    style: TextStyle(color: Palette.text)),
+                subtitle: const Text(
+                  'Levels, stars, coins and levels swept.',
+                  style: TextStyle(color: Palette.textMuted, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  leaderboards.show();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.emoji_events_rounded,
+                    color: Palette.hopper),
+                title: const Text('Achievements',
+                    style: TextStyle(color: Palette.text)),
+                subtitle: const Text(
+                  'Earned whether you are signed in or not.',
+                  style: TextStyle(color: Palette.textMuted, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  achievements.show();
+                },
+              ),
+              const Divider(height: 24, indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.link_off_rounded,
                     color: Palette.bolted),
