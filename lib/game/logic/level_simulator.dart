@@ -437,11 +437,14 @@ class RunPlan {
 }
 
 class _Node {
-  _Node(this.state, this.parent, this.input);
+  _Node(this.state, this.parent, this.input, this.flips);
 
   final RunState state;
   final int parent;
   final RunInput input;
+
+  /// Flips spent getting here. Only read when [solveLevel] is given a budget.
+  final int flips;
 }
 
 /// Searches for an input sequence that finishes the level without dying.
@@ -451,16 +454,23 @@ class _Node {
 /// reachable. States are deduplicated on a quantised grid, so the search can
 /// miss a solution but can never invent one: the plan it returns is replayed
 /// exactly by [runPlan].
+///
+/// [allowJump] and [maxFlips] narrow what the search may spend, which is how
+/// the tests ask whether a level can be finished under the restraints two of
+/// the achievements demand — no jump at all, or at most a handful of flips.
+/// Both default to unrestricted, so the authoring run is unaffected.
 RunPlan? solveLevel(
   LevelModel level, {
   int stepsPerDecision = 4,
   int frontierCap = 4000,
+  bool allowJump = true,
+  int? maxFlips,
 }) {
   final index = LevelIndex(level);
   final totalSteps = (level.seconds / kFixedStep).ceil() + stepsPerDecision;
   final decisions = (totalSteps / stepsPerDecision).ceil();
 
-  var layer = <_Node>[_Node(RunState(), -1, RunInput.none)];
+  var layer = <_Node>[_Node(RunState(), -1, RunInput.none, 0)];
   final layers = <List<_Node>>[layer];
 
   for (var decision = 0; decision < decisions; decision++) {
@@ -471,8 +481,9 @@ RunPlan? solveLevel(
       final node = layer[n];
       final options = <RunInput>[
         RunInput.none,
-        node.state.gravityUp ? RunInput.flipDown : RunInput.flipUp,
-        if (node.state.grounded) RunInput.jump,
+        if (maxFlips == null || node.flips < maxFlips)
+          node.state.gravityUp ? RunInput.flipDown : RunInput.flipUp,
+        if (allowJump && node.state.grounded) RunInput.jump,
       ];
 
       for (final option in options) {
@@ -482,14 +493,23 @@ RunPlan? solveLevel(
           advance(index, candidate);
         }
 
+        final flips =
+            node.flips + (option == RunInput.none || option == RunInput.jump
+                ? 0
+                : 1);
+
         if (candidate.status == RunStatus.dead) continue;
         if (candidate.status == RunStatus.won) {
-          layers.add([...next, _Node(candidate, n, option)]);
+          layers.add([...next, _Node(candidate, n, option, flips)]);
           return _reconstruct(layers, next.length, stepsPerDecision);
         }
-        if (!seen.add(_key(candidate))) continue;
+        // Two states that differ only in how many flips are left are the same
+        // state to an unbudgeted search and different states to a budgeted
+        // one, so the spend joins the key exactly when it can matter.
+        final key = maxFlips == null ? _key(candidate) : _key(candidate) | (flips << 18);
+        if (!seen.add(key)) continue;
         if (next.length >= frontierCap) break;
-        next.add(_Node(candidate, n, option));
+        next.add(_Node(candidate, n, option, flips));
       }
     }
 

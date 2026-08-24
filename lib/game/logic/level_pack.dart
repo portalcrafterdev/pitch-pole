@@ -56,4 +56,12 @@ int shardCount(int total) => (total + kShardSize - 1) ~/ kShardSize;
 int shardStartFor(int id) => ((id - 1) ~/ kShardSize) * kShardSize + 1;
 
 /// Path of the shard holding [id].
-String shardPathFor(int id) => shardPathAt(shardStar
+String shardPathFor(int id) => shardPathAt(shardStartFor(id));
+
+/// Path of the shard beginning at [startId].
+String shardPathAt(int startId) =>
+    '$kLevelsDir/shard_${startId.toString().padLeft(5, '0')}.json';
+
+/// Every shard's first id, in order.
+List<int> shardStarts(int total) =>
+    [for (var i = 0; i < shardCount(total); i++) i * kShardSize + 1];

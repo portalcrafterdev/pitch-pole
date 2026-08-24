@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
-import 'package:pitchpole/game/logic/level_generator.dart';
 import 'package:pitchpole/game/logic/level_pack.dart';
 import 'package:pitchpole/main.dart';
 import 'package:pitchpole/ui/overlays/overlay_panel.dart';

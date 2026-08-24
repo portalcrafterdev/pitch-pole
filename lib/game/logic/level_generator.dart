@@ -22,6 +22,8 @@ import 'level_simulator.dart';
 import 'physics.dart';
 import 'run_state.dart';
 
+export 'level_pack.dart' show kTotalLevels;
+
 /// Levels 1 to 5 are hand placed and stay that way.
 ///
 /// Five is enough to teach the original five types, one per level, each met
@@ -33,8 +35,10 @@ import 'run_state.dart';
 /// levels, so the game reads all ten thousand the same way.
 const int kFirstGeneratedLevel = 6;
 
-/// How many levels ship.
-const int kTotalLevels = 10000;
+// [kTotalLevels] is a fact about the pack rather than about the generator, so
+// it lives in level_pack.dart. It is re-exported from here because the tools
+// read it alongside the difficulty dials below and there is no reason to make
+// them import two files to get one span.
 
 /// Difficulty climbs until here and then holds.
 ///

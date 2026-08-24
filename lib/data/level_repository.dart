@@ -61,7 +61,11 @@ class LevelRepository {
   }
 
   Future<LevelModel?> byId(int id) async {
-    if (id < 1) return null;
+    // Bounded against the index rather than against the shards, because an id
+    // past the end names a shard file that was never written: reaching for it
+    // throws where the honest answer is that there is no such level. The index
+    // is one small file and it is already cached, so this costs nothing.
+    if (id < 1 || id > await count()) return null;
     final shard = await _shard(shardStartFor(id));
     final at = id - shardStartFor(id);
     return at < shard.length ? shard[at] : null;

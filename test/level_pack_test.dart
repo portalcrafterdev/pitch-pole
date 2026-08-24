@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pitchpole/game/logic/level_generator.dart';
 import 'package:pitchpole/game/logic/level_pack.dart';
 
 /// The pack is found by arithmetic rather than by searching: the app works out
