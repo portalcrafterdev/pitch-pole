@@ -290,6 +290,20 @@ class PitchpoleGame extends FlameGame {
     _deathPause = kDeathPause;
   }
 
+  /// How many hearts to draw, which is not always [RunState.lives].
+  ///
+  /// The life is taken at the respawn rather than at the death, so that a
+  /// player who earns one back continues from the checkpoint instead of losing
+  /// the run. That leaves a window — the death pause, and any ad inside it —
+  /// where the state still holds the life that has visibly just been spent.
+  /// Drawing it puts a full heart next to the words OUT OF LIVES, which is the
+  /// panel calling the HUD a liar. The hearts show what is left, so a death in
+  /// progress is a heart already gone.
+  int get livesShown {
+    final lives = sim.state.lives;
+    return sim.state.status == RunStatus.dead ? lives - 1 : lives;
+  }
+
   /// Hands the result to the screen, once the burst has been seen.
   void _announceWin() {
     final lives = sim.state.lives;

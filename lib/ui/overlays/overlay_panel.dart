@@ -167,10 +167,13 @@ class OverlayPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 22),
-        // Wide enough for the longest label the game has, which is
-        // RESTART LEVEL, without it being shrunk to fit.
+        // Sized for the longest label the game has, which is WATCH AD FOR A
+        // LIFE on the out of lives panel. It was 208, set when RESTART LEVEL
+        // was the longest, and the rewarded life button then had to shrink so
+        // far that its label ran the full width of the slab and read as
+        // bursting out of it.
         SizedBox(
-          width: 208,
+          width: 244,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: actions,
@@ -331,6 +334,10 @@ class _PanelButtonState extends State<PanelButton> {
               BoxShadow(color: lip, offset: Offset(0, lipDepth)),
             ],
           ),
+          // Keeps the label off the border. Without it a label long enough to
+          // be scaled down lands hard against both edges, which reads as text
+          // bursting out of the slab rather than as a smaller label.
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

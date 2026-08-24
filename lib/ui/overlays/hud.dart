@@ -67,7 +67,10 @@ class Hud extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                   ],
-                  _Pill(child: _Lives(lives: state.lives)),
+                  // Asked of the game rather than read off the state: a death
+                  // still being handled has not given its life back to the
+                  // simulator yet, and the hearts must not wait for it.
+                  _Pill(child: _Lives(lives: game.livesShown)),
                   const SizedBox(width: 8),
                   // A round slab, the same as the settings button on the home
                   // screen. Pausing mid run is done in a hurry, so it gets a
