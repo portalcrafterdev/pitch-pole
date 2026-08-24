@@ -97,6 +97,18 @@ class PitchpoleGame extends FlameGame {
   double _shakeFor = 0;
   bool _inputLocked = false;
 
+  /// Jumps and flips the player has actually made this attempt.
+  ///
+  /// Counted here rather than on [RunState] on purpose: the solver copies a
+  /// RunState hundreds of thousands of times per level and must not pay for
+  /// something that cannot change whether a level is completable. Same reason
+  /// coins are collected in [LevelSimulator.step] and never in [advance].
+  ///
+  /// Only inputs that did something are counted — a flip towards the surface
+  /// you are already on, or a jump while airborne, is not a flip or a jump.
+  int jumpsUsed = 0;
+  int flipsUsed = 0;
+
   /// How long the game holds still after a death before respawning.
   static const double kDeathPause = 0.7;
 
@@ -238,9 +250,11 @@ class PitchpoleGame extends FlameGame {
       final grounded = sim.state.grounded;
       sim.input(input);
       if (input == RunInput.jump && grounded) {
+        jumpsUsed++;
         _player.onJump();
         _sound.play(Sfx.jump, volume: Mix.jump);
       } else if (sim.state.gravityUp != before) {
+        flipsUsed++;
         _player.onFlip(toCeiling: sim.state.gravityUp);
         _sound.play(Sfx.flip, volume: Mix.flip);
         _haptic(HapticFeedback.selectionClick);
@@ -367,6 +381,11 @@ class PitchpoleGame extends FlameGame {
   /// fresh clock.
   void restart() {
     sim.restart();
+    // A fresh attempt at the level, so the style counters start over. They
+    // deliberately survive a respawn: clearing a level 'without jumping' means
+    // the whole attempt, checkpoints included.
+    jumpsUsed = 0;
+    flipsUsed = 0;
     _syncCoins();
     _player.reset();
     _door.reset();

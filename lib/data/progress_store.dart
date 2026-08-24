@@ -21,6 +21,8 @@ class ProgressStore extends ChangeNotifier {
   static const String _starsPrefix = 'stars.';
   static const String _bestPrefix = 'best.';
   static const String _coinsPrefix = 'coins.';
+  static const String _coinTotalPrefix = 'coinsOf.';
+  static const String _deathsPrefix = 'deaths.';
   static const String _hapticsKey = 'settings.haptics';
   static const String _soundKey = 'settings.sound';
   static const String _musicKey = 'settings.music';
@@ -34,6 +36,13 @@ class ProgressStore extends ChangeNotifier {
 
   /// Most coins picked up on a single run of a level.
   final Map<int, int> _bestCoins = {};
+
+  /// How many coins each level actually holds, so a swept level can be told
+  /// from a nearly swept one without loading the pack.
+  final Map<int, int> _coinTotals = {};
+
+  /// Lives lost per level, all time. Only an achievement reads this.
+  final Map<int, int> _deaths = {};
   bool _haptics = true;
   bool _sound = true;
   bool _music = true;
@@ -57,6 +66,8 @@ class ProgressStore extends ChangeNotifier {
     _stars.clear();
     _bestSeconds.clear();
     _bestCoins.clear();
+    _coinTotals.clear();
+    _deaths.clear();
     for (final key in prefs.getKeys()) {
       if (key.startsWith(_starsPrefix)) {
         final id = int.tryParse(key.substring(_starsPrefix.length));
@@ -66,6 +77,14 @@ class ProgressStore extends ChangeNotifier {
         final id = int.tryParse(key.substring(_bestPrefix.length));
         final best = prefs.getDouble(key);
         if (id != null && best != null) _bestSeconds[id] = best;
+      } else if (key.startsWith(_coinTotalPrefix)) {
+        final id = int.tryParse(key.substring(_coinTotalPrefix.length));
+        final total = prefs.getInt(key);
+        if (id != null && total != null) _coinTotals[id] = total;
+      } else if (key.startsWith(_deathsPrefix)) {
+        final id = int.tryParse(key.substring(_deathsPrefix.length));
+        final deaths = prefs.getInt(key);
+        if (id != null && deaths != null) _deaths[id] = deaths;
       } else if (key.startsWith(_coinsPrefix)) {
         final id = int.tryParse(key.substring(_coinsPrefix.length));
         final coins = prefs.getInt(key);
@@ -109,6 +128,37 @@ class ProgressStore extends ChangeNotifier {
 
   int get totalCoins => _bestCoins.values.fold(0, (sum, c) => sum + c);
 
+  /// Levels finished with every life intact.
+  int get cleanCount => _stars.values.where((s) => s == 3).length;
+
+  /// The ids of those, so a caller can ask what kind of levels they were.
+  Iterable<int> get cleanLevelIds =>
+      _stars.entries.where((e) => e.value == 3).map((e) => e.key);
+
+  /// Levels where every coin has been picked up on a single run.
+  ///
+  /// Counted against [_coinTotals], which is what the level actually holds, so
+  /// a level is only swept when nothing was left behind.
+  int get sweptCount {
+    var swept = 0;
+    for (final entry in _bestCoins.entries) {
+      final total = _coinTotals[entry.key];
+      if (total != null && total > 0 && entry.value >= total) swept++;
+    }
+    return swept;
+  }
+
+  /// How many times a level has been lost, all time.
+  int deathsFor(int levelId) => _deaths[levelId] ?? 0;
+
+  /// Records a lost life. Cheap and frequent, so it writes through without
+  /// notifying: nothing on screen is drawn from it.
+  Future<void> recordDeath(int levelId) async {
+    final next = deathsFor(levelId) + 1;
+    _deaths[levelId] = next;
+    await _prefs?.setInt('$_deathsPrefix$levelId', next);
+  }
+
   /// Records a finish, keeping the best star count and the fastest time. The
   /// two are tracked separately: a slow clean run keeps its 3 stars, a fast
   /// scrappy one keeps its time.
@@ -117,7 +167,15 @@ class ProgressStore extends ChangeNotifier {
     int stars,
     double seconds, {
     int coins = 0,
+    int coinsOnLevel = 0,
   }) async {
+    // Remembered so [sweptCount] can tell a swept level from a nearly swept
+    // one without reloading the pack to ask how many coins it held.
+    if (coinsOnLevel > 0 && _coinTotals[levelId] != coinsOnLevel) {
+      _coinTotals[levelId] = coinsOnLevel;
+      await _prefs?.setInt('$_coinTotalPrefix$levelId', coinsOnLevel);
+    }
+
     final best = _bestSeconds[levelId];
     final improvedTime = best == null || seconds < best;
     final improvedStars = stars > starsFor(levelId);
@@ -191,15 +249,25 @@ class ProgressStore extends ChangeNotifier {
   }
 
   Future<void> resetProgress() async {
-    final ids = {..._stars.keys, ..._bestSeconds.keys, ..._bestCoins.keys};
+    final ids = {
+      ..._stars.keys,
+      ..._bestSeconds.keys,
+      ..._bestCoins.keys,
+      ..._coinTotals.keys,
+      ..._deaths.keys,
+    };
     _stars.clear();
     _bestSeconds.clear();
     _bestCoins.clear();
+    _coinTotals.clear();
+    _deaths.clear();
     notifyListeners();
     for (final id in ids) {
       await _prefs?.remove('$_starsPrefix$id');
       await _prefs?.remove('$_bestPrefix$id');
       await _prefs?.remove('$_coinsPrefix$id');
+      await _prefs?.remove('$_coinTotalPrefix$id');
+      await _prefs?.remove('$_deathsPrefix$id');
     }
   }
 }

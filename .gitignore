@@ -46,3 +46,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Built by zipping store/achievements. It is 1.6 MB of bytes that already
+# exist in that folder, and it goes stale the moment a CSV or an icon
+# changes, so it is rebuilt rather than tracked. See
+# store/achievements/README.md for how.
+/store/achievements.zip
+
+# Scratch work for tool/generate_levels.dart: finished chunks of solved
+# levels, kept between runs so an interrupted authoring run resumes instead
+# of starting over. The pack it produces is what gets committed.
+/.level_cache/

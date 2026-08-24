@@ -4,20 +4,33 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/game/logic/level_generator.dart';
 import 'package:pitchpole/game/logic/level_model.dart';
+import 'package:pitchpole/game/logic/level_pack.dart';
 import 'package:pitchpole/game/logic/level_simulator.dart';
 import 'package:pitchpole/game/logic/physics.dart';
 import 'package:pitchpole/game/logic/run_state.dart';
 
+/// Reads the whole pack off disk, shard by shard.
+///
+/// Ten thousand levels held at once is most of a gigabyte, which a desktop
+/// running the suite can afford and a phone cannot — which is exactly why the
+/// app never does this and reads one shard at a time instead. Here the whole
+/// pack is the point: the structural rules are checked on every level of it.
 List<LevelModel> loadLevels() {
-  final raw = jsonDecode(File('assets/levels/levels.json').readAsStringSync());
-  return (raw as List<dynamic>)
-      .map((e) => LevelModel.fromJson(e as Map<String, dynamic>))
-      .toList();
+  final levels = <LevelModel>[];
+  for (final start in shardStarts(kTotalLevels)) {
+    final file = File(shardPathAt(start));
+    if (!file.existsSync()) break;
+    levels.addAll(
+      (jsonDecode(file.readAsStringSync()) as List<dynamic>)
+          .map((e) => LevelModel.fromJson(e as Map<String, dynamic>)),
+    );
+  }
+  return levels;
 }
 
 /// A spread of levels across the whole pack.
 ///
-/// Solving a level costs seconds, and there are fifteen hundred of them, so
+/// Solving a level costs seconds, and there are ten thousand of them, so
 /// the suite solves a representative sample rather than all of it. Every level
 /// *is* solved before it ships — that happens in `tool/generate_levels.dart`,
 /// across isolates, at authoring time. This is the regression net, not the
@@ -46,8 +59,30 @@ void main() {
         List.generate(levels.length, (i) => i + 1));
   });
 
-  test('the pack is the full fifteen hundred', () {
+  test('the pack is the full ten thousand', () {
     expect(levels.length, kTotalLevels);
+  });
+
+  test('the shards on disk agree with the index the app reads', () {
+    // The app finds a level by doing arithmetic on its id rather than by
+    // searching for it, so a shard that is the wrong length hands the player
+    // the wrong level rather than failing.
+    final index =
+        jsonDecode(File(kIndexPath).readAsStringSync()) as Map<String, dynamic>;
+    expect(index['count'], kTotalLevels);
+    expect(index['shardSize'], kShardSize);
+
+    final starts = shardStarts(kTotalLevels);
+    expect(starts.length, kShardCount);
+    for (final start in starts) {
+      final shard =
+          jsonDecode(File(shardPathAt(start)).readAsStringSync()) as List;
+      expect(shard.first['id'], start,
+          reason: 'shard $start does not begin at the id it is named for');
+      expect(shard.length, lessThanOrEqualTo(kShardSize));
+      expect(shardStartFor(shard.last['id'] as int), start,
+          reason: 'shard $start runs past its own range');
+    }
   });
 
   // --- rules that hold for every level, checked without solving -------------
@@ -240,6 +275,59 @@ void main() {
     expect(last.obstacleCount, greaterThan(first.obstacleCount));
     expect(last.runSpeed, greaterThan(first.runSpeed));
     expect(last.hopPeriod, lessThan(first.hopPeriod));
+  });
+
+  group('the plateau earns its length through variety, not difficulty', () {
+    // Past level 300 every difficulty dial is pinned: same speed, same hop
+    // period, same 43 obstacles. What separates one plateau level from another
+    // is only which archetype it rolled, so the archetype list is the whole
+    // variety budget for 97% of the pack. These guard it.
+
+    test('every archetype is reachable, and none of them dominates', () {
+      final used = <String, int>{};
+      for (var id = kRampEndLevel + 1; id <= kTotalLevels; id++) {
+        final name = archetypeFor(id).name;
+        used[name] = (used[name] ?? 0) + 1;
+      }
+
+      expect(used.length, kArchetypes.length,
+          reason: 'an archetype that never comes up is dead weight');
+
+      // Seeded picking is not perfectly uniform and does not need to be, but
+      // one archetype turning up far more often than another would mean the
+      // back of the pack leans on it harder than the table suggests.
+      final mean = (kTotalLevels - kRampEndLevel) / kArchetypes.length;
+      for (final entry in used.entries) {
+        expect(entry.value, greaterThan(mean * 0.75),
+            reason: '${entry.key} is rare: ${entry.value} levels');
+        expect(entry.value, lessThan(mean * 1.25),
+            reason: '${entry.key} is common: ${entry.value} levels');
+      }
+    });
+
+    test('no archetype drops an obstacle type entirely', () {
+      // A level that omits a type the player has already been taught reads as
+      // a different, emptier game than the one before it. _assign reserves one
+      // of each taught type first, but the weights have to back that up, or
+      // the rest of the level is drawn from a shorter list than intended.
+      for (final archetype in kArchetypes) {
+        for (final kind in ObstacleKind.values) {
+          expect(archetype.weights[kind], isNotNull,
+              reason: '${archetype.name} has no weight for ${kind.name}');
+          expect(archetype.weights[kind], greaterThan(0.0));
+        }
+      }
+    });
+
+    test('an archetype is fixed to its level forever', () {
+      // Picked by seeding on the id, so it is the same for every player on
+      // every device. Changing the list reshuffles all of them, which is why
+      // it costs a full regeneration.
+      for (final id in [301, 1000, 5000, kTotalLevels]) {
+        expect(archetypeFor(id).name, archetypeFor(id).name);
+        expect(kArchetypes.map((a) => a.name), contains(archetypeFor(id).name));
+      }
+    });
   });
 
   test('difficulty holds at the ceiling once the ramp is over', () {

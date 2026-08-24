@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitchpole/game/logic/level_generator.dart';
 import 'package:pitchpole/game/scene_theme.dart';
 import 'package:pitchpole/ui/palette.dart';
 
@@ -33,7 +34,7 @@ double _distance(Color a, Color b) {
 
 void main() {
   test('every level gets a theme, and always the same one', () {
-    for (final id in [1, 7, 10, 11, 250, 999, 1500]) {
+    for (final id in [1, 7, 10, 11, 250, 999, kTotalLevels]) {
       expect(SceneTheme.forLevel(id), same(SceneTheme.forLevel(id)));
     }
 
@@ -48,13 +49,15 @@ void main() {
   });
 
   test('the whole pack is covered without falling off the end', () {
-    for (var id = 1; id <= 1500; id++) {
+    for (var id = 1; id <= kTotalLevels; id++) {
       expect(SceneTheme.all, contains(SceneTheme.forLevel(id)));
     }
   });
 
   test('every theme is actually used somewhere in the pack', () {
-    final seen = {for (var id = 1; id <= 1500; id++) SceneTheme.forLevel(id)};
+    final seen = {
+      for (var id = 1; id <= kTotalLevels; id++) SceneTheme.forLevel(id),
+    };
     expect(seen.length, SceneTheme.all.length,
         reason: 'a theme nobody ever sees is dead code with a colour scheme');
   });

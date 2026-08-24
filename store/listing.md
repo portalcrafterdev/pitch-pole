@@ -28,10 +28,10 @@ Pitchpole: Gravity Flip Run
 
 ## Short description
 
-Limit 80 characters. This is 73.
+Limit 80 characters. This is 76.
 
 ```
-Flip gravity, dodge the forest, reach the door. 1500 levels, all solvable.
+Flip gravity, dodge the forest, reach the door. 10,000 levels, all solvable.
 ```
 
 ## Full description
@@ -41,7 +41,7 @@ Limit 4000 characters. This is about 1900.
 ```
 Your runner never stops. One tap flips gravity so it falls up to the ceiling
 and runs upside down, another jumps off whichever surface it is standing on.
-That is the whole game, and there are 1500 levels of it.
+That is the whole game, and there are 10,000 levels of it.
 
 RUN, FLIP, JUMP
 The forest comes at you at speed. Read what is ahead, pick a surface, and
@@ -57,7 +57,7 @@ commit. Every obstacle is answered a different way:
 - Spiders drop from the ceiling on a thread. Stay on the floor, and do not
   jump.
 
-1500 LEVELS THAT ALL FINISH
+10,000 LEVELS THAT ALL FINISH
 Every level was checked by a solver before it shipped, so not one of them is
 impossible. Coins are laid along a route that provably works: follow a row of
 them and you are on a line that reaches the door.

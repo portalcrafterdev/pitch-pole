@@ -3,20 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/logic/level_generator.dart';
+import 'package:pitchpole/game/logic/level_pack.dart';
 import 'package:pitchpole/main.dart';
 import 'package:pitchpole/ui/overlays/overlay_panel.dart';
 import 'package:pitchpole/ui/screens/level_select_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Loads the level pack for real before a screen that needs it is pumped.
+/// Reads the pack's index for real before a screen that needs it is pumped.
 ///
-/// The repository parses the pack on another isolate, because at 1500 levels
-/// it is a few megabytes and would hitch the home screen otherwise. A real
-/// isolate never finishes inside `testWidgets`' fake clock, so the load has to
+/// The menus only ever ask for the level *count*, which is a 29 byte asset,
+/// and the shard a level lives in is decoded on another isolate. A real
+/// isolate never finishes inside `testWidgets`' fake clock, so the read has to
 /// happen in [WidgetTester.runAsync] first; after that the repository serves
 /// it from cache and the widgets settle normally.
 Future<void> warmLevels(WidgetTester tester) =>
-    tester.runAsync(() => levelRepository.loadAll());
+    tester.runAsync(() => levelRepository.count());
 
 void main() {
   setUp(() async {
@@ -24,14 +25,32 @@ void main() {
     await progressStore.load();
   });
 
-  testWidgets('the level pack loads from the asset bundle', (tester) async {
-    // Through runAsync, because the repository parses on another isolate and
-    // a real isolate never finishes under the fake test clock.
-    final levels = (await tester.runAsync(levelRepository.loadAll))!;
+  testWidgets('the pack reports its size without reading a level',
+      (tester) async {
+    // What the menus actually do. Reading the whole pack to learn how many
+    // levels there are costs 29 MB of JSON and peaks near half a gigabyte,
+    // which is more than Android gives an app on a cheap phone.
+    final count = (await tester.runAsync(levelRepository.count))!;
+    expect(count, kTotalLevels);
+  });
 
-    expect(levels.length, kTotalLevels);
-    expect(levels.first.id, 1);
-    expect(levels.last.id, kTotalLevels);
+  testWidgets('a level is reachable by id, from either end of the pack',
+      (tester) async {
+    // Through runAsync, because the shard is decoded on another isolate and a
+    // real isolate never finishes under the fake test clock.
+    await tester.runAsync(() async {
+      expect((await levelRepository.byId(1))!.id, 1);
+      expect((await levelRepository.byId(kTotalLevels))!.id, kTotalLevels);
+
+      // Either side of a shard seam, which is where arithmetic on the id is
+      // the thing most likely to be off by one.
+      expect((await levelRepository.byId(kShardSize))!.id, kShardSize);
+      expect((await levelRepository.byId(kShardSize + 1))!.id, kShardSize + 1);
+
+      expect(await levelRepository.byId(kTotalLevels + 1), isNull,
+          reason: 'past the end of the pack is nothing, not a crash');
+      expect(await levelRepository.byId(0), isNull);
+    });
   });
 
   testWidgets('home offers play and reaches level select', (tester) async {
@@ -144,7 +163,7 @@ void main() {
 
     testWidgets('deep in the pack it scrolls to the current level',
         (tester) async {
-      // The whole reason this exists: at 1500 levels, opening at the top
+      // The whole reason this exists: at 10,000 levels, opening at the top
       // leaves a player hundreds of rows away from where they got to.
       for (var id = 1; id <= 400; id++) {
         await progressStore.record(id, 3, 30.0);

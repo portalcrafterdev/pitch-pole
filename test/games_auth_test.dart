@@ -155,7 +155,7 @@ void main() {
       testWidgets(name, (tester) async {
         debugDefaultTargetPlatformOverride = platform;
         try {
-          await tester.runAsync(() => levelRepository.loadAll());
+          await tester.runAsync(() => levelRepository.count());
           await tester.pumpWidget(const PitchpoleApp());
           await tester.pumpAndSettle();
           await body(tester);

@@ -659,7 +659,17 @@ List<String> pacingProblems(LevelModel level) {
 /// check the cheap structural rules over a whole pack — the exhaustive solve
 /// belongs in `tool/generate_levels.dart`, which runs it across isolates at
 /// authoring time.
-LevelValidation validateLevel(LevelModel level, {bool solve = true}) {
+/// [frontierCap] is handed straight to [solveLevel]. A smaller frontier is a
+/// weaker search, never a more permissive one: it can fail to find a route
+/// that exists, but it can never invent one. So a caller in a hurry may lower
+/// it and retry at the default before believing a failure — see
+/// `tool/generate_levels.dart`, which does exactly that across ten thousand
+/// levels.
+LevelValidation validateLevel(
+  LevelModel level, {
+  bool solve = true,
+  int frontierCap = 4000,
+}) {
   final problems = <String>[];
 
   final expectedLength = level.runSpeed * kLevelSeconds;
@@ -824,7 +834,7 @@ LevelValidation validateLevel(LevelModel level, {bool solve = true}) {
 
   RunPlan? plan;
   if (solve && problems.isEmpty) {
-    plan = solveLevel(level);
+    plan = solveLevel(level, frontierCap: frontierCap);
     if (plan == null) {
       problems.add('no input sequence finishes this level');
     } else {

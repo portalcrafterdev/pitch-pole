@@ -3,7 +3,7 @@
 /// This file must never import Flame, Flutter or dart:ui.
 ///
 /// Levels are still pure, static, repeatable data: this runs once at authoring
-/// time and its output is committed to `assets/levels/levels.json`. Nothing
+/// time and its output is committed to `assets/levels/` as shards. Nothing
 /// here ever runs on a player's phone. Level 847 is the same level for
 /// everybody, forever, because it is the same bytes for everybody.
 ///
@@ -11,7 +11,8 @@
 /// and retry. Spacing, clearances and phases are all chosen so the level obeys
 /// the rules before the validator ever sees it — the solver is a check, not a
 /// filter. That matters because solving a level costs seconds and there are
-/// fifteen hundred of them.
+/// ten thousand of them: at roughly a second each the authoring run is hours,
+/// and a generate-and-retry loop would make it days.
 library;
 
 import 'dart:math';
@@ -24,12 +25,16 @@ import 'run_state.dart';
 /// Levels 1 to 5 are hand placed and stay that way.
 ///
 /// Five is enough to teach the original five types, one per level, each met
-/// completely alone. Any longer and the player is ten minutes into a fifteen
-/// hundred level game before anything new happens.
+/// completely alone. Any longer and the player is ten minutes into a ten
+/// thousand level game before anything new happens.
+///
+/// They live in `assets/levels/taught.json`, which is the hand edited source for
+/// them. The tool copies them into the shipped shards next to the generated
+/// levels, so the game reads all ten thousand the same way.
 const int kFirstGeneratedLevel = 6;
 
 /// How many levels ship.
-const int kTotalLevels = 1500;
+const int kTotalLevels = 10000;
 
 /// Difficulty climbs until here and then holds.
 ///
@@ -130,6 +135,85 @@ const List<Archetype> kArchetypes = [
     ObstacleKind.hopper: 1,
     ObstacleKind.blade: 1,
     ObstacleKind.stone: 1,
+  }),
+  // The six below exist because the plateau is 9,700 levels long. The six
+  // above were written for a pack a sixth of this size, and at this length
+  // each of them would come round about 1,600 times. Difficulty cannot rise
+  // past level 300 — a 30 second level at 280 units per second holds 43
+  // obstacles and no more — so the only dial left for the back of the pack is
+  // how many different things a level can *ask for*.
+  //
+  // Each one pairs two types the first six never lean on together, so it is a
+  // new question rather than a reshuffle of an old one.
+  Archetype('cavein', {
+    // Both of these drop across the band on their own clock, one from each
+    // surface. The whole level is gates that slam rather than a surface to
+    // pick.
+    ObstacleKind.stone: 5,
+    ObstacleKind.spider: 4,
+    ObstacleKind.bolted: 2,
+    ObstacleKind.hopper: 1,
+    ObstacleKind.blade: 1,
+    ObstacleKind.fire: 1,
+    ObstacleKind.bat: 1,
+  }),
+  Archetype('crossfire', {
+    // Neither belongs to a surface. A blade says be at the far end of the
+    // band, a bat says do not move — so the reading has to happen early and
+    // the answer is where you already are.
+    ObstacleKind.blade: 5,
+    ObstacleKind.bat: 4,
+    ObstacleKind.bolted: 2,
+    ObstacleKind.hopper: 2,
+    ObstacleKind.stone: 1,
+    ObstacleKind.fire: 1,
+    ObstacleKind.spider: 1,
+  }),
+  Archetype('scramble', {
+    // Hoppers are the one obstacle with two right answers, fires are the one
+    // that takes the choice away for a moment. Together they are a rhythm
+    // with holes punched in it.
+    ObstacleKind.hopper: 5,
+    ObstacleKind.fire: 4,
+    ObstacleKind.bolted: 2,
+    ObstacleKind.blade: 1,
+    ObstacleKind.stone: 1,
+    ObstacleKind.bat: 1,
+    ObstacleKind.spider: 1,
+  }),
+  Archetype('pinch', {
+    // Bolted enemies demand a flip; spiders keep shutting the surface a flip
+    // would go to. The ceiling is a place you visit, never a place you stay.
+    ObstacleKind.bolted: 5,
+    ObstacleKind.spider: 4,
+    ObstacleKind.hopper: 2,
+    ObstacleKind.blade: 1,
+    ObstacleKind.stone: 1,
+    ObstacleKind.fire: 1,
+    ObstacleKind.bat: 1,
+  }),
+  Archetype('anvil', {
+    // A bat is answered a second early, a stone is answered on the exact
+    // beat. Alternating between the two is the hardest reading in the game
+    // that does not need a new obstacle to exist.
+    ObstacleKind.bat: 5,
+    ObstacleKind.stone: 4,
+    ObstacleKind.bolted: 2,
+    ObstacleKind.hopper: 1,
+    ObstacleKind.blade: 1,
+    ObstacleKind.fire: 1,
+    ObstacleKind.spider: 1,
+  }),
+  Archetype('flashpoint', {
+    // A fire closes one surface on a timer, a blade crosses both. The gap
+    // between them is the level.
+    ObstacleKind.fire: 5,
+    ObstacleKind.blade: 4,
+    ObstacleKind.hopper: 2,
+    ObstacleKind.bolted: 2,
+    ObstacleKind.stone: 1,
+    ObstacleKind.bat: 1,
+    ObstacleKind.spider: 1,
   }),
 ];
 

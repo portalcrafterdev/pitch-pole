@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../data/level_repository.dart';
 import '../../data/menu_audio.dart';
 import '../../data/progress_store.dart';
-import '../../game/logic/level_model.dart';
 import '../menu_palette.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/star_row.dart';
@@ -13,7 +12,7 @@ import 'game_screen.dart';
 
 /// Grid geometry, worked out the same way the sliver delegate does it.
 ///
-/// With fifteen hundred levels the grid has to open where the player actually
+/// With ten thousand levels the grid has to open where the player actually
 /// is, and that means knowing which row a level lands on before anything is
 /// laid out.
 class _Grid {
@@ -72,11 +71,35 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
   }
 
   /// The level the player is actually on: the first one they have not solved.
-  int _currentIndex(List<LevelModel> levels) {
-    for (var i = 0; i < levels.length; i++) {
-      if (!progressStore.isSolved(levels[i].id)) return i;
+  ///
+  /// Works off the count rather than the pack, because ids run 1 to [count]
+  /// with no gaps — the authoring tool refuses to write a pack where they do
+  /// not. That is what lets a ten thousand tile grid be built without reading
+  /// a single level.
+  int _currentIndex(int count) {
+    for (var i = 0; i < count; i++) {
+      if (!progressStore.isSolved(i + 1)) return i;
     }
-    return levels.length - 1;
+    return count - 1;
+  }
+
+  /// Loads the tapped level, then replaces this screen with it.
+  ///
+  /// The tile is built from an id alone, so the level itself is not in hand
+  /// when it is tapped. Reading its shard is a few hundred kilobytes off the
+  /// bundle, which is quick enough that a spinner would only flicker.
+  Future<void> _open(BuildContext context, int levelId) async {
+    final navigator = Navigator.of(context);
+    final opening = await openingFor(levelId);
+    if (opening == null || !context.mounted) return;
+    navigator.pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => GameScreen(
+          level: opening.level,
+          levelCount: opening.levelCount,
+        ),
+      ),
+    );
   }
 
   @override
@@ -143,29 +166,29 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
             stops: [0.0, 0.45, 1.0],
           ),
         ),
-        child: FutureBuilder<List<LevelModel>>(
-          future: levelRepository.loadAll(),
+        child: FutureBuilder<int>(
+          future: levelRepository.count(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Center(
                 child: CircularProgressIndicator(color: MenuPalette.play),
               );
             }
-            final levels = snapshot.data!;
+            final count = snapshot.data!;
             return LayoutBuilder(
               builder: (context, constraints) {
                 final grid = _Grid.forWidth(constraints.maxWidth);
 
                 // Open on the level the player is actually on. Without this a
-                // pack this long always starts fifteen hundred tiles away from
+                // pack this long always starts ten thousand tiles away from
                 // wherever they got to.
                 if (!_positioned) {
                   _positioned = true;
                   _controller = ScrollController(
                     initialScrollOffset: grid.offsetFor(
-                      _currentIndex(levels),
+                      _currentIndex(count),
                       constraints.maxHeight,
-                      levels.length,
+                      count,
                     ),
                   );
                 }
@@ -182,19 +205,13 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                       mainAxisSpacing: _Grid.spacing,
                       childAspectRatio: _Grid.aspectRatio,
                     ),
-                    itemCount: levels.length,
+                    itemCount: count,
                     itemBuilder: (context, index) => _LevelTile(
-                      level: levels[index],
-                      stars: progressStore.starsFor(levels[index].id),
-                      bestSeconds:
-                          progressStore.bestSecondsFor(levels[index].id),
-                      unlocked: progressStore.isUnlocked(levels[index].id),
-                      onTap: () => Navigator.of(context).pushReplacement(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              GameScreen(levels: levels, index: index),
-                        ),
-                      ),
+                      levelId: index + 1,
+                      stars: progressStore.starsFor(index + 1),
+                      bestSeconds: progressStore.bestSecondsFor(index + 1),
+                      unlocked: progressStore.isUnlocked(index + 1),
+                      onTap: () => _open(context, index + 1),
                     ),
                   ),
                 );
@@ -209,14 +226,14 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
 
 class _LevelTile extends StatelessWidget {
   const _LevelTile({
-    required this.level,
+    required this.levelId,
     required this.stars,
     required this.bestSeconds,
     required this.unlocked,
     required this.onTap,
   });
 
-  final LevelModel level;
+  final int levelId;
   final int stars;
   final double? bestSeconds;
   final bool unlocked;
@@ -282,7 +299,7 @@ class _LevelTile extends StatelessWidget {
                   )
                 else
                   Text(
-                    '${level.id}',
+                    '$levelId',
                     style: TextStyle(
                       color: solved ? Colors.white : MenuPalette.ink,
                       fontSize: 24,

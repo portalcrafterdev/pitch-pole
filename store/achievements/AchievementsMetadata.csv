@@ -1,0 +1,32 @@
+First Steps,Clear level 1.,False,,Revealed,5,1
+Taught,Clear all five teaching levels.,False,,Revealed,5,2
+Two Dozen,Clear 25 levels.,True,25,Revealed,10,3
+Century,Clear 100 levels.,True,100,Revealed,15,4
+Past the Ramp,Clear level 300 where the game stops getting harder and starts changing shape.,False,,Revealed,25,5
+Thousand,Clear 1000 levels.,True,1000,Revealed,35,6
+Quarter,Clear 2500 levels.,True,2500,Revealed,45,7
+Halfway,Clear 5000 levels.,True,5000,Revealed,60,8
+Pitchpole,Clear all 10000 levels.,True,10000,Revealed,150,9
+Untouched,Finish a level without losing a single life.,False,,Revealed,5,10
+Flawless Teaching,Three stars on all five teaching levels.,False,,Revealed,5,11
+Ten Clean,Three stars on 10 levels.,True,10,Revealed,10,12
+Hundred Clean,Three stars on 100 levels.,True,100,Revealed,20,13
+Untouchable,Three stars on 1000 levels.,True,1000,Revealed,80,14
+Star Hoard,Collect 5000 stars.,True,5000,Revealed,30,15
+Constellation,Collect 20000 stars.,False,,Revealed,50,16
+Every Star,Collect all 30000 stars.,False,,Revealed,100,17
+Pocket Change,Collect 100 coins.,True,100,Revealed,5,18
+Sweep,Collect every coin on a single level.,False,,Revealed,10,19
+Sweeper,Collect every coin on 50 levels.,True,50,Revealed,25,20
+Coin Baron,Collect 50000 coins.,False,,Revealed,35,21
+All That Glitters,Collect 250000 coins.,False,,Revealed,60,22
+Featherfoot,Clear a level without pressing jump once.,False,,Revealed,20,23
+Held Ground,Clear a level using three flips or fewer.,False,,Revealed,20,24
+Full Tilt,Three stars on a level running at full speed.,False,,Revealed,20,25
+Range,Three stars on levels built from six different obstacle mixes.,True,6,Revealed,25,26
+Every Flavour,Three stars on a level from all twelve obstacle mixes.,True,12,Revealed,60,27
+No Retreat,Clear a level after losing two lives.,False,,Revealed,10,28
+Every Threat,Reach level 9 having met all seven kinds of obstacle.,False,,Revealed,5,29
+Ten in a Row,Clear 10 levels without leaving the game.,True,10,Revealed,15,30
+Marathon,Clear 50 levels without leaving the game.,True,50,Revealed,25,31
+Stubborn,Clear a level you have died on ten times or more.,False,,Revealed,15,32

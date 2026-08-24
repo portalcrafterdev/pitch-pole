@@ -133,7 +133,7 @@ List<double> _death() {
 /// rather than sounding one at a time.
 ///
 /// It is a rise, not a fanfare. The reward for finishing a level is the next
-/// level, and there are fifteen hundred of them: a sound that celebrates hard
+/// level, and there are ten thousand of them: a sound that celebrates hard
 /// is unbearable by the fiftieth. It sits on the C of the music bed's A minor,
 /// so it lands in key over whatever the loop happens to be playing.
 List<double> _win() {

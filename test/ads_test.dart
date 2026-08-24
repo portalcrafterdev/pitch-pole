@@ -100,9 +100,11 @@ void main() {
 
   group('the extra life', () {
     test('picks the run up at the checkpoint instead of the start', () async {
-      final levels = await levelRepository.loadAll();
-      // A level long enough to have checkpoints to come back to.
-      final level = levels.firstWhere((l) => l.checkpoints.isNotEmpty);
+      // Level 1 is long enough to have checkpoints to come back to, and it is
+      // read on its own rather than pulled out of the whole pack: loading ten
+      // thousand levels to use one of them is most of a gigabyte.
+      final level = (await levelRepository.byId(1))!;
+      expect(level.checkpoints, isNotEmpty);
 
       final sim = LevelSimulator(level);
       // Spend two lives, so the next death is the last one.
@@ -208,10 +210,15 @@ void main() {
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
-      final levels = (await tester.runAsync(levelRepository.loadAll))!;
+      final opening = (await tester.runAsync(() => openingFor(1)))!;
 
       await tester.pumpWidget(
-        MaterialApp(home: GameScreen(levels: levels, index: 0)),
+        MaterialApp(
+          home: GameScreen(
+            level: opening.level,
+            levelCount: opening.levelCount,
+          ),
+        ),
       );
       // Not pumpAndSettle: a running game never settles.
       await tester.pump();

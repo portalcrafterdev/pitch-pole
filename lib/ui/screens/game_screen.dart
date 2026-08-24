@@ -5,7 +5,10 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/achievement_rules.dart';
+import '../../data/achievements.dart';
 import '../../data/ads.dart';
+import '../../data/level_repository.dart';
 import '../../data/progress_store.dart';
 import '../../game/logic/level_model.dart';
 import '../../game/logic/physics.dart';
@@ -19,11 +22,49 @@ import '../palette.dart';
 import '../widgets/touch_controls.dart';
 import 'level_select_screen.dart';
 
-class GameScreen extends StatefulWidget {
-  const GameScreen({super.key, required this.levels, required this.index});
+/// Loads [levelId] out of its shard and opens it.
+///
+/// The pack is sharded, so reaching a level is asynchronous where it used to be
+/// a list lookup. It is one asset read of a few hundred kilobytes, and the
+/// shard holding the next level is nearly always the one already in memory, so
+/// there is nothing here worth showing a spinner for. A level that does not
+/// exist does nothing rather than throwing: the id comes from a grid built off
+/// the pack's own count, so the only way to miss is a pack that shrank.
+Future<LevelOpening?> openingFor(int levelId) async {
+  final level = await levelRepository.byId(levelId);
+  if (level == null) return null;
+  return LevelOpening(level, await levelRepository.count());
+}
 
-  final List<LevelModel> levels;
-  final int index;
+/// A level and how many there are, which is all [GameScreen] needs to know
+/// about the pack it came from.
+class LevelOpening {
+  const LevelOpening(this.level, this.levelCount);
+
+  final LevelModel level;
+  final int levelCount;
+}
+
+/// Levels cleared since the app was opened.
+///
+/// Deliberately not persisted: 'ten in a row' means one sitting, and a count
+/// that survived a restart would make it mean nothing.
+int levelsClearedThisSession = 0;
+
+class GameScreen extends StatefulWidget {
+  const GameScreen({
+    super.key,
+    required this.level,
+    required this.levelCount,
+  });
+
+  /// The level being played. Handed in already loaded rather than looked up
+  /// here, so the screen itself stays synchronous and testable.
+  final LevelModel level;
+
+  /// How many levels are in the pack, which is the only thing this screen uses
+  /// the rest of the pack for: deciding whether there is a next level.
+  final int levelCount;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -44,8 +85,8 @@ class _GameScreenState extends State<GameScreen> {
   double _seconds = 0;
   double? _previousBest;
 
-  LevelModel get _level => widget.levels[widget.index];
-  bool get _hasNext => widget.index + 1 < widget.levels.length;
+  LevelModel get _level => widget.level;
+  bool get _hasNext => _level.id < widget.levelCount;
 
   @override
   void initState() {
@@ -96,6 +137,7 @@ class _GameScreenState extends State<GameScreen> {
   /// Returns as soon as there is nothing loaded, which is most of the time on
   /// a bad connection, so the respawn stays as immediate as it ever was.
   Future<void> _onLifeLost() {
+    unawaited(progressStore.recordDeath(_level.id));
     // Line the extra life up now, while there is still a life in hand. It has
     // to be loaded *before* the last one goes: fetching it at the moment the
     // panel appears means the offer arrives after the player has already read
@@ -126,8 +168,41 @@ class _GameScreenState extends State<GameScreen> {
       _coins = coins;
       _previousBest = progressStore.bestSecondsFor(_level.id);
     });
-    progressStore.record(_level.id, stars, seconds, coins: coins);
+    unawaited(_recordAndAward(stars, seconds, coins));
     _game.overlays.add(_complete);
+  }
+
+  /// Saves the result, then works out what it earned.
+  ///
+  /// Awarding happens after the save so every rule reads the same totals the
+  /// player can see, and it is awaited by nothing on screen: an achievement is
+  /// a note sent after the fact and must never hold up the cleared panel.
+  Future<void> _recordAndAward(int stars, double seconds, int coins) async {
+    await progressStore.record(
+      _level.id,
+      stars,
+      seconds,
+      coins: coins,
+      coinsOnLevel: _level.coins.length,
+    );
+
+    levelsClearedThisSession++;
+
+    await awardFor(
+      RunOutcome(
+        levelId: _level.id,
+        stars: stars,
+        coins: coins,
+        coinsOnLevel: _level.coins.length,
+        runSpeed: _level.runSpeed,
+        jumps: _game.jumpsUsed,
+        flips: _game.flipsUsed,
+        deathsOnLevel: progressStore.deathsFor(_level.id),
+        levelsThisSession: levelsClearedThisSession,
+      ),
+      progressStore,
+      achievements,
+    );
   }
 
   /// The last life went, which is the only failure the game has: an ordinary
@@ -137,6 +212,9 @@ class _GameScreenState extends State<GameScreen> {
   /// the ad lands the player on the panel that explains what happened rather
   /// than on a level that is already over.
   void _onRunOut() {
+    // The last life is still a life lost, and it does not come through
+    // _onLifeLost — that gate only runs when there is something to respawn to.
+    unawaited(progressStore.recordDeath(_level.id));
     _game.overlays.add(_failed);
     unawaited(adsController.showAtBreak());
   }
@@ -180,10 +258,15 @@ class _GameScreenState extends State<GameScreen> {
     _focus.requestFocus();
   }
 
-  void _goToLevel(int index) {
+  Future<void> _goToLevel(int levelId) async {
+    final opening = await openingFor(levelId);
+    if (opening == null || !mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => GameScreen(levels: widget.levels, index: index),
+        builder: (_) => GameScreen(
+          level: opening.level,
+          levelCount: opening.levelCount,
+        ),
       ),
     );
   }
@@ -253,7 +336,7 @@ class _GameScreenState extends State<GameScreen> {
                   coins: _coins,
                   totalCoins: _level.coins.length,
                   hasNext: _hasNext,
-                  onNext: () => _goToLevel(widget.index + 1),
+                  onNext: () => _goToLevel(_level.id + 1),
                   onRetry: _restart,
                   onLevels: _goToLevelSelect,
                 ),

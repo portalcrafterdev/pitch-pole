@@ -70,13 +70,14 @@ lib/
       level_model.dart       parsed level data
       run_state.dart         x, y, vy, gravityUp, lives, status
       level_simulator.dart   headless run, solver and validator
-      level_generator.dart   builds levels 6 to 1500, authoring time only
+      level_generator.dart   builds levels 6 to 10000, authoring time only
+      level_pack.dart        where the shards live and what is in each
   ui/
     screens/                 home, level select, game
     overlays/                hud, level complete, level failed, pause
     widgets/                 touch controls, star row, sign in button
   data/
-    level_repository.dart    loads assets/levels/levels.json
+    level_repository.dart    reads one shard of assets/levels/ at a time
     progress_store.dart      stars, best times and settings
     games_auth.dart          Play Games / Game Center sign in, optional
 ```
@@ -227,7 +228,8 @@ panel come up, with its own confetti fall and the stars popping in one by one.
 
 ## Levels
 
-Levels are pure data in `assets/levels/levels.json`. No level logic in code.
+Levels are pure data in `assets/levels/`, sharded 250 to a file. No level logic
+in code.
 
 ```json
 {
@@ -256,13 +258,13 @@ the first and 800 after the last. At base speed 700 units is 3.5 seconds of
 holding still, which is the edge of what a runner can carry, and that rule is
 what sets the floor of ten obstacles a level.
 
-### 1500 levels, in three parts
+### 10,000 levels, in three parts
 
 | Levels | | Speed | `hopPeriod` | Obstacles |
 | --- | --- | --- | --- | --- |
 | 1 to 5 | **taught** — hand placed, the original five types | 200 | 2.0 | 10 to 12 |
 | 6 to 300 | **ramp** — generated, climbing the whole way | 200 to 280 | 2.0 to 1.0 | 12 to 43 |
-| 301 to 1500 | **plateau** — difficulty flat, composition rotating | 280 | 1.0 | 43 |
+| 301 to 10,000 | **plateau** — difficulty flat, composition rotating | 280 | 1.0 | 43 |
 
 Levels 1 to 5 are hand placed and stay that way. Level 1 is two of each at 545
 unit spacing, in the order bolted, hopper, blade, stone, fire, then round again
@@ -275,13 +277,16 @@ seventh type — fourteen obstacles at 545 unit spacing would need 7,630 units i
 a 6,000 unit level — so the new types come *after* the teaching rather than
 inside it, and they come quickly.
 
-**Difficulty cannot climb 1500 times, and the pack does not pretend it does.**
+**Difficulty cannot climb 10,000 times, and the pack does not pretend it does.**
 A level is 30 seconds, obstacles cannot be closer than 60 units, and a bat
 needs 130 either side. At the top speed of 280 that caps a level at about 43
 obstacles, and there is nowhere further to go. So it ramps hard to level 300
 and then holds, and past that what changes is *what a level asks for*: each one
-is built from one of six archetypes — `swarm`, `furnace`, `canopy`, `gauntlet`,
-`balanced`, `commitment` — picked from its own id.
+is built from one of twelve archetypes — `swarm`, `furnace`, `canopy`,
+`gauntlet`, `balanced`, `commitment`, `cavein`, `crossfire`, `scramble`,
+`pinch`, `anvil`, `flashpoint` — picked from its own id. The first six were
+written for a pack of 1,500; the second six were added at 10,000, each pairing
+two obstacle types the first six never leaned on together.
 
 ### Generating and checking
 
@@ -298,8 +303,8 @@ committed pack still matches what the generator produces, so the asset can
 never silently drift from the code that made it.
 
 The generator is built to be correct by construction rather than to guess and
-retry, because solving a level costs seconds and there are fifteen hundred of
-them. Spacing, clearances and phases are all chosen up front — and phases in
+retry, because solving a level costs about a second and there are ten thousand
+of them — a full authoring run is around four hours. Spacing, clearances and phases are all chosen up front — and phases in
 particular are aimed at the exact moment the character arrives, which is
 knowable because forward speed never changes and arrival is always
 `x / runSpeed`. The solver is a check, not a filter.
@@ -316,8 +321,8 @@ clear of anything else, a hop always fits inside its period, and no stretch of
 track is left empty.
 
 Solving is the only expensive part, so the work is split. `validateLevel(level,
-solve: false)` checks every structural rule and runs over all 1500 levels in a
-unit test. The full solve runs across isolates in `tool/generate_levels.dart`,
+solve: false)` checks every structural rule and runs over all 10,000 levels in
+a unit test. The full solve runs across isolates in `tool/generate_levels.dart`,
 which refuses to write the pack if a single level fails; the test suite solves
 the five taught levels plus a spread of a dozen generated ones as a
 regression net. Every level that ships has been solved — just not on every
@@ -364,15 +369,16 @@ sound effects.
 | M2 data driven levels, simulator, validator | done |
 | M3 shell | home, level select with stars and best times, pause, settings, touch controls |
 | M4 feel pass | flip rotation, squash and stretch, trail, shake, sound, haptics |
-| M5 content | **1500 levels**, all validated and all solved |
+| M5 content | **10,000 levels**, all validated and all solved |
 
 Level select opens on the level you are actually on rather than at the top,
-which stops mattering at 20 levels and starts mattering a great deal at 1500.
+which stops mattering at 20 levels and starts mattering a great deal at 10,000.
 
 What has *not* been done is playtesting at this scale. The pack is proven
-solvable — a breadth first search finished every one of the 1500 — but "a
+solvable — a breadth first search finished every one of the 10,000 — but "a
 solver can finish it" and "it is fun" are different claims, and only the first
-one is tested. The plateau in particular is 1200 levels of flat difficulty
-whose variety comes from six archetypes; whether that reads as varied or as
-samey over hundreds of levels is a question for a real phone and a real
-player, not for a test suite.
+one is tested. The plateau in particular is 9,700 levels of flat difficulty
+whose variety comes from twelve archetypes — about 800 levels each. Whether
+that reads as varied or as samey over thousands of levels is a question for a
+real phone and a real player, not for a test suite, and archetype count is
+still the thing most likely to run out first.

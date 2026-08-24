@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../data/level_repository.dart';
 import '../../data/menu_audio.dart';
 import '../../data/progress_store.dart';
-import '../../game/logic/level_model.dart';
 import '../menu_palette.dart';
 import '../motion.dart';
 import '../overlays/overlay_panel.dart';
@@ -35,10 +34,14 @@ class HomeScreen extends StatelessWidget {
           // indicator rather than stopping in a grey band short of them.
           const HomeBackdrop(),
           SafeArea(
-            child: FutureBuilder<List<LevelModel>>(
-              future: levelRepository.loadAll(),
+            child: FutureBuilder<int>(
+              // The count, not the pack. The home screen shows how many levels
+              // there are and how many are solved, and the second of those
+              // comes out of the progress store — so there is no reason to
+              // decode ten thousand levels to draw two buttons.
+              future: levelRepository.count(),
               builder: (context, snapshot) {
-                final levels = snapshot.data;
+                final levelCount = snapshot.data;
                 return AnimatedBuilder(
                   animation: progressStore,
                   builder: (context, _) => Stack(
@@ -74,7 +77,7 @@ class HomeScreen extends StatelessWidget {
                                       child: _TitleSign(compact: compact),
                                     ),
                                     SizedBox(height: compact ? 14 : 26),
-                                    if (levels == null)
+                                    if (levelCount == null)
                                       const CircularProgressIndicator(
                                         color: MenuPalette.play,
                                       )
@@ -97,17 +100,8 @@ class HomeScreen extends StatelessWidget {
                                                 filled: true,
                                                 accent: MenuPalette.play,
                                                 compact: compact,
-                                                onPressed: () {
-                                                  final next = progressStore
-                                                      .nextLevel(levels.length);
-                                                  _openAndResumeMusic(
-                                                    context,
-                                                    (_) => GameScreen(
-                                                      levels: levels,
-                                                      index: next - 1,
-                                                    ),
-                                                  );
-                                                },
+                                                onPressed: () =>
+                                                    _openLevel(context, levelCount),
                                               ),
                                             ),
                                             _PopIn(
@@ -143,7 +137,7 @@ class HomeScreen extends StatelessWidget {
                                         order: 4,
                                         child: _ScoreChip(
                                           solved: progressStore.solvedCount,
-                                          levels: levels.length,
+                                          levels: levelCount,
                                           stars: progressStore.totalStars,
                                         ),
                                       ),
@@ -188,6 +182,24 @@ class HomeScreen extends StatelessWidget {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: builder))
         .then((_) => MenuAudio.instance.start());
+  }
+
+  /// PLAY, or CONTINUE: opens the first level the player has not solved.
+  ///
+  /// The level has to be read out of its shard before the screen can be built,
+  /// so this is asynchronous where it used to be a list lookup. One shard is a
+  /// few hundred kilobytes off the bundle, which is faster than the page
+  /// transition it is hidden behind.
+  Future<void> _openLevel(BuildContext context, int levelCount) async {
+    final opening = await openingFor(progressStore.nextLevel(levelCount));
+    if (opening == null || !context.mounted) return;
+    _openAndResumeMusic(
+      context,
+      (_) => GameScreen(
+        level: opening.level,
+        levelCount: opening.levelCount,
+      ),
+    );
   }
 
   void _showSettings(BuildContext context) {
