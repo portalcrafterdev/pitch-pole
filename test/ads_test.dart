@@ -6,6 +6,7 @@ import 'package:pitchpole/data/ads.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/logic/level_model.dart';
+import 'package:pitchpole/game/logic/run_state.dart';
 import 'package:pitchpole/game/logic/level_simulator.dart';
 import 'package:pitchpole/game/pitchpole_game.dart';
 import 'package:pitchpole/ui/overlays/level_failed.dart';
@@ -156,13 +157,17 @@ void main() {
   });
 
   group('the out of lives panel', () {
-    Future<int> pumpPanel(WidgetTester tester) async {
+    Future<int> pumpPanel(
+      WidgetTester tester, {
+      int extraLivesLeft = kMaxRewardedLives,
+    }) async {
       var taken = 0;
       await tester.pumpWidget(MaterialApp(
         home: LevelFailed(
           onRetry: () {},
           onLevels: () {},
           onExtraLife: () => taken++,
+          extraLivesLeft: extraLivesLeft,
         ),
       ));
       await tester.pumpAndSettle();
@@ -185,6 +190,36 @@ void main() {
       await pumpPanel(tester);
 
       expect(find.text('WATCH AD FOR A LIFE'), findsOneWidget);
+    });
+
+    testWidgets('the offer runs out after two, ad or no ad', (tester) async {
+      // A level may be picked up twice and no more. Without a cap a stubborn
+      // player could sit on the last checkpoint watching ads forever, and a
+      // level ground out an ad at a time is not a level any more.
+      adsController.debugOfferExtraLife = true;
+
+      await pumpPanel(tester, extraLivesLeft: 1);
+      expect(find.text('WATCH AD FOR A LIFE'), findsOneWidget,
+          reason: 'one still owed');
+
+      await pumpPanel(tester, extraLivesLeft: 0);
+      expect(find.text('WATCH AD FOR A LIFE'), findsNothing,
+          reason: 'both spent, so the offer is gone even with an ad loaded');
+      expect(find.text('RUN IT AGAIN'), findsOneWidget,
+          reason: 'and the way out is still there');
+    });
+
+    testWidgets('says why the offer is gone rather than just removing it',
+        (tester) async {
+      // A button that silently vanishes reads as a broken game or a broken
+      // network. Being told the rule is the difference between the two.
+      adsController.debugOfferExtraLife = true;
+      await pumpPanel(tester, extraLivesLeft: 0);
+
+      expect(
+        find.textContaining('two is all a level gives'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('the offer appears when the ad lands after the panel',

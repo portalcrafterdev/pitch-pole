@@ -1,7 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+/// How the game runs: no status bar, no navigation bar, the whole screen.
+///
+/// Declared here rather than only at startup because this file is what has to
+/// put it back. An ad is the one thing that takes the screen away from the
+/// game and hands it to somebody else's layout, and [AdsController] leaves
+/// this mode for as long as that lasts. See [_releaseScreen].
+const SystemUiMode kGameUiMode = SystemUiMode.immersiveSticky;
 
 /// The ad unit ids, real and test.
 ///
@@ -233,6 +242,7 @@ class AdsController extends ChangeNotifier {
     }
     _interstitial = null;
     _showing = true;
+    await _releaseScreen();
     // Announced both ways round. The out of lives panel is built while this
     // interstitial is still up, and [canOfferExtraLife] is false for as long
     // as it is — so without telling anyone when it closes, that panel never
@@ -243,6 +253,7 @@ class AdsController extends ChangeNotifier {
     void finish(InterstitialAd shown) {
       shown.dispose();
       _showing = false;
+      unawaited(_reclaimScreen());
       // Timed from when it closed rather than from when it opened, so a long
       // ad does not eat into the quiet that is supposed to follow it.
       _lastBreak = clock();
@@ -265,6 +276,7 @@ class AdsController extends ChangeNotifier {
     } catch (error) {
       debugPrint('Pitchpole: ad failed to show ($error)');
       _showing = false;
+      unawaited(_reclaimScreen());
       preload();
       notifyListeners();
       return false;
@@ -287,6 +299,7 @@ class AdsController extends ChangeNotifier {
     }
     _rewarded = null;
     _showing = true;
+    await _releaseScreen();
     notifyListeners();
 
     var earned = false;
@@ -294,6 +307,7 @@ class AdsController extends ChangeNotifier {
     void finish(RewardedInterstitialAd shown) {
       shown.dispose();
       _showing = false;
+      unawaited(_reclaimScreen());
       preloadRewarded();
       notifyListeners();
       if (!closed.isCompleted) closed.complete();
@@ -315,6 +329,7 @@ class AdsController extends ChangeNotifier {
     } catch (error) {
       debugPrint('Pitchpole: rewarded ad failed to show ($error)');
       _showing = false;
+      unawaited(_reclaimScreen());
       preloadRewarded();
       notifyListeners();
       return false;
@@ -324,6 +339,46 @@ class AdsController extends ChangeNotifier {
   /// Test seam: pretends an ad is on screen without a platform behind it.
   @visibleForTesting
   set debugShowing(bool value) => _showing = value;
+
+  /// Gives the system bars back for as long as an ad is on screen.
+  ///
+  /// The Mobile Ads SDK opens its own activity and copies the host's system UI
+  /// visibility onto it, so the game's immersive sticky mode lands on the ad's
+  /// window. `dumpsys window` on a stuck ad showed exactly that:
+  ///
+  ///     com.portalcrafter.pitchpole/...ads.AdActivity
+  ///       vsysui=HIDE_NAVIGATION IMMERSIVE_STICKY
+  ///       fl=LAYOUT_IN_SCREEN FULLSCREEN
+  ///       layoutInDisplayCutoutMode=always
+  ///       fitSides=
+  ///
+  /// An ad laid out edge to edge with no insets puts its own chrome — the
+  /// countdown, and the close button with it — outside the usable screen, and
+  /// a player who cannot close an ad cannot play. The creative decides how
+  /// badly that lands, which is why some ads closed fine and one trapped the
+  /// screen for ninety seconds.
+  ///
+  /// Fails soft like everything else here: a platform with no window to
+  /// change is not the player's problem.
+  Future<void> _releaseScreen() async {
+    try {
+      await SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values,
+      );
+    } catch (error) {
+      debugPrint('Pitchpole: could not show the system bars ($error)');
+    }
+  }
+
+  /// Takes the screen back once the ad is gone.
+  Future<void> _reclaimScreen() async {
+    try {
+      await SystemChrome.setEnabledSystemUIMode(kGameUiMode);
+    } catch (error) {
+      debugPrint('Pitchpole: could not restore immersive mode ($error)');
+    }
+  }
 }
 
 final AdsController adsController = AdsController();

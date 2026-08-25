@@ -30,9 +30,14 @@ const int perArchetype = 10;
 }
 
 Future<void> main() async {
-  // Gather the first `perArchetype` plateau ids for each archetype.
+  // Walked backwards from the end of the pack on purpose: difficulty rises all
+  // the way to [kTotalLevels], so the last levels of each archetype are the
+  // hardest ones it will ever produce and the only ones in real danger of
+  // being unsolvable. Sampling from 301 upwards — which is what this did when
+  // difficulty went flat after the ramp — would now test the easiest plateau
+  // levels and pass while the end of the pack was impossible.
   final byName = <String, List<int>>{};
-  for (var id = kRampEndLevel + 1; id <= kTotalLevels; id++) {
+  for (var id = kTotalLevels; id > kRampEndLevel; id--) {
     final name = archetypeFor(id).name;
     final bucket = byName.putIfAbsent(name, () => []);
     if (bucket.length < perArchetype) bucket.add(id);

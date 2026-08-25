@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    What Android's Game Mode is allowed to do to this game.
+
+    Declaring android:appCategory="game" is what makes the system treat
+    Pitchpole as a game at all: the Game Dashboard appears, and battery and
+    data usage are attributed under Games rather than under apps. This file is
+    the second half of that — it says which of the system's interventions are
+    welcome.
+
+    Every answer here comes from one fact about this game: it is thirty seconds
+    of tight timing windows, and it renders almost nothing to achieve that. A
+    level is flat vector shapes on a fixed 560 by 220 viewport, so there is
+    very little GPU work to take away and very little battery to win back.
+
+    supportsPerformanceGameMode
+        Yes. Smooth frames are the whole feel of a runner, and section 12 of
+        the build document budgets real time on exactly that.
+
+    supportsBatteryGameMode
+        No, and this is the one worth explaining rather than a default. Battery
+        mode saves power by throttling the frame rate, and the simulation is
+        safe from that — it runs on a fixed 1/120 second timestep with an
+        accumulator, so physics is identical at 30, 60 or 120 frames per second
+        and no tuned hop window can drift. What is not safe is the input. Taps
+        are queued and drained once per frame, so a throttled frame rate is a
+        throttled input sampling rate, and a game whose difficulty is
+        deliberately built out of tight windows becomes harder in a way the
+        player never agreed to. Offering a battery mode that had to be refused
+        this intervention would be offering a mode that does nothing.
+
+    allowGameDownscaling
+        No. The game already renders to a fixed virtual resolution and is
+        letterboxed to fit, so downscaling buys no meaningful GPU time and
+        costs a blurrier picture.
+
+    allowGameFpsOverride
+        No, for the input reason above.
+-->
+<game-mode-config
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:supportsPerformanceGameMode="true"
+    android:supportsBatteryGameMode="false"
+    android:allowGameDownscaling="false"
+    android:allowGameFpsOverride="false" />

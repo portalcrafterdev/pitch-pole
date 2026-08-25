@@ -18,6 +18,7 @@ library;
 import 'dart:math';
 
 import 'level_model.dart';
+import 'level_pack.dart' show kTotalLevels;
 import 'level_simulator.dart';
 import 'physics.dart';
 import 'run_state.dart';
@@ -40,12 +41,19 @@ const int kFirstGeneratedLevel = 6;
 // read it alongside the difficulty dials below and there is no reason to make
 // them import two files to get one span.
 
-/// Difficulty climbs until here and then holds.
+/// Where the first, steep climb ends and the twelve archetypes take over.
 ///
-/// It has to stop somewhere. A level is 30 seconds and obstacles cannot be
-/// closer than [kMinObstacleGap], so there is a hard ceiling on how much can
-/// be put in front of the player. Past this point levels change what they ask
-/// for rather than how much.
+/// Difficulty does **not** stop here. It used to: everything past this point
+/// was flat, and the note that used to sit here said there was a hard ceiling
+/// and nowhere left to go. That described the settings rather than the game.
+/// The real ceilings are the readability rule in [runSpeedFor] and the bat
+/// clearance behind [_hardMinSpacing], and the first ramp stops well short of
+/// both — so [lateRampAt] spends what is left over the rest of the pack.
+///
+/// What this constant still marks is the change in *kind*. Up to here a level
+/// is a lesson, built from a mix that leans on what the player has just been
+/// taught. Past it every level is one of [kArchetypes], so what a level asks
+/// for rotates while how much it asks keeps rising.
 const int kRampEndLevel = 300;
 
 /// The bat and the spider each get a level of their own to be met in, right
@@ -76,8 +84,9 @@ enum ObstacleKind { bolted, hopper, blade, stone, fire, bat, spider }
 
 /// A named mix of obstacle types.
 ///
-/// Past [kRampEndLevel] difficulty is flat, so what keeps levels apart is
-/// which of these a level is built from. Weights are relative.
+/// Past [kRampEndLevel] what a level asks for rotates through these while how
+/// much it asks keeps climbing, so two levels a thousand apart differ in both.
+/// Weights are relative.
 class Archetype {
   const Archetype(this.name, this.weights);
 
@@ -140,12 +149,11 @@ const List<Archetype> kArchetypes = [
     ObstacleKind.blade: 1,
     ObstacleKind.stone: 1,
   }),
-  // The six below exist because the plateau is 9,700 levels long. The six
-  // above were written for a pack a sixth of this size, and at this length
-  // each of them would come round about 1,600 times. Difficulty cannot rise
-  // past level 300 — a 30 second level at 280 units per second holds 43
-  // obstacles and no more — so the only dial left for the back of the pack is
-  // how many different things a level can *ask for*.
+  // The six below exist because the back of the pack is 9,700 levels long. The
+  // six above were written for a pack a sixth of this size, and at this length
+  // each of them would come round about 1,600 times. Difficulty does keep
+  // rising past level 300, but slowly — what is left after the first ramp is
+  // real and finite — so variety has to carry most of the distance.
   //
   // Each one pairs two types the first six never lean on together, so it is a
   // new question rather than a reshuffle of an old one.
@@ -221,39 +229,87 @@ const List<Archetype> kArchetypes = [
   }),
 ];
 
-/// 0 at the first generated level, 1 once the ramp is over.
+/// 0 at the first generated level, 1 once the first ramp is over.
 double rampAt(int id) {
   if (id <= kFirstGeneratedLevel) return 0;
   if (id >= kRampEndLevel) return 1;
   return (id - kFirstGeneratedLevel) / (kRampEndLevel - kFirstGeneratedLevel);
 }
 
+/// 0 at [kRampEndLevel], 1 at the last level in the pack.
+///
+/// The second climb. The first ramp spends most of what the physics allows in
+/// 300 levels, and this spends what is left over the other 9,700 — so a level
+/// is always a little harder than the one before it, all the way to the end of
+/// the pack.
+///
+/// It is deliberately slow. What is left after level 300 is real but finite,
+/// and stretched across 9,700 levels one step is around a hundredth of a
+/// percent: level 5,000 and level 5,001 are the same level to play. The climb
+/// is only legible across hundreds of levels, and nobody should pretend
+/// otherwise. What it buys is that the back of the pack is genuinely harder
+/// than the middle rather than flat.
+double lateRampAt(int id) {
+  if (id <= kRampEndLevel) return 0;
+  if (id >= kTotalLevels) return 1;
+  return (id - kRampEndLevel) / (kTotalLevels - kRampEndLevel);
+}
+
 /// Speed steps rather than a slope, so a level feels authored at one pace
 /// instead of drifting. Every step is a noticeable change in reading time.
+///
+/// The ceiling is 310 and it is not a taste: the camera shows 470 units ahead
+/// of the character, and section 5 requires every obstacle to be visible for
+/// at least 1.5 seconds before it is reached. 470 / 1.5 is 313, so 310 is the
+/// fastest this game can run and still be fair. Past it the pack would stop
+/// being rhythm and start being reflex.
 double runSpeedFor(int id) {
   final t = rampAt(id);
-  if (t < 0.25) return 200;
-  if (t < 0.50) return 220;
-  if (t < 0.72) return 240;
-  if (t < 0.88) return 260;
-  return 280;
+  if (t < 1) {
+    if (t < 0.25) return 200;
+    if (t < 0.50) return 220;
+    if (t < 0.72) return 240;
+    if (t < 0.88) return 260;
+    return 280;
+  }
+  // The second climb, over the remaining 9,700 levels.
+  final late = lateRampAt(id);
+  if (late < 0.34) return 280;
+  if (late < 0.67) return 295;
+  return 310;
 }
 
 /// Picks up where the hand placed levels left off and tightens to the floor
 /// the hop air time allows.
 double hopPeriodFor(int id) {
-  final period = 2.0 - 1.0 * rampAt(id);
-  // Never so tight that a hop cannot finish inside its own period.
+  final period = 2.0 - 1.0 * rampAt(id) - 0.05 * lateRampAt(id);
+  // Never so tight that a hop cannot finish inside its own period. This is
+  // what stops the second climb from making hoppers *easier*: past the floor
+  // a hopper is airborne almost always, and a hopper in the air is something
+  // you run underneath.
   return max(period, kHopAirTime + 0.25);
 }
 
-double spacingFor(int id) =>
-    _startSpacing - (_startSpacing - _endSpacing) * rampAt(id);
+/// Obstacle spacing, and through it how many a level holds.
+///
+/// The second climb takes this from the first ramp's 186 down to
+/// [_hardMinSpacing]. Together with the speed rise that is the largest change
+/// available after level 300: a 9,300 unit level packed at 150 holds around
+/// 60 obstacles where a 8,400 unit one at 186 holds 43.
+double spacingFor(int id) {
+  final first = _startSpacing - (_startSpacing - _endSpacing) * rampAt(id);
+  return first - (_endSpacing - _hardMinSpacing) * lateRampAt(id);
+}
 
 /// How often a timed obstacle is in its dangerous state as the character
 /// arrives. Rises with the ramp, so early levels mostly wave you through and
 /// late ones mostly do not.
-double _threatChanceFor(int id) => 0.35 + 0.45 * rampAt(id);
+///
+/// Stops at 0.95 rather than 1. At 1 every blade, stone, fire and spider in
+/// the pack is lethal at the exact moment you reach it, which stops being a
+/// timing window and becomes a wall.
+double _threatChanceFor(int id) =>
+    0.35 + 0.45 * rampAt(id) + 0.15 * lateRampAt(id);
 
 /// The mix a level is built from.
 Archetype archetypeFor(int id) {

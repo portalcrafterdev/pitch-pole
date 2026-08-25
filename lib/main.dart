@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'data/achievements.dart';
 import 'data/ads.dart';
+import 'data/cloud_save.dart';
 import 'data/games_auth.dart';
 import 'data/leaderboards.dart';
 import 'data/menu_audio.dart';
@@ -27,7 +28,7 @@ Future<void> main() async {
   ]);
 
   // Full bleed, so the status and navigation bars do not eat the band.
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  await SystemChrome.setEnabledSystemUIMode(kGameUiMode);
 
   await progressStore.load();
 
@@ -36,6 +37,10 @@ Future<void> main() async {
   // a local read and the first level must not be able to finish before it.
   await achievements.load();
   await leaderboards.load();
+
+  // Not awaited and not blocking: it only does anything once an account
+  // exists, and reaching the menu must never wait on a network.
+  cloudSave.start();
 
   // Not awaited. Reconnecting to Play Games or Game Center means a round trip
   // to the platform, and reaching the menu must never wait on a network. The

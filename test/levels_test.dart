@@ -330,20 +330,52 @@ void main() {
     });
   });
 
-  test('difficulty holds at the ceiling once the ramp is over', () {
-    // It has to stop somewhere: a 30 second level and a 60 unit minimum gap
-    // put a hard cap on how much can be put in front of the player. Past the
-    // ramp levels change what they ask for, not how much.
-    final plateau = levels.where((l) => l.id > kRampEndLevel);
-    for (final level in plateau) {
-      expect(level.runSpeed, 280, reason: 'level ${level.id}');
-      expect(level.hopPeriod, closeTo(1.0, 0.001), reason: 'level ${level.id}');
+  test('difficulty keeps climbing past the ramp, and never falls', () {
+    // This used to assert the opposite — that speed and hop period were pinned
+    // at the ramp's ceiling forever — because difficulty went flat after level
+    // 300. It does not any more: the first ramp stops well short of what the
+    // physics allows, and the rest is spent across the other 9,700 levels.
+    //
+    // Monotonic rather than strictly increasing on purpose. A step is about a
+    // hundredth of a percent, so consecutive levels are usually identical and
+    // the honest claim is that a level is never *easier* than the one before.
+    var lastSpeed = 0.0;
+    var lastPeriod = 999.0;
+    for (final level in levels.where((l) => l.id > kRampEndLevel)) {
+      expect(level.runSpeed, greaterThanOrEqualTo(lastSpeed),
+          reason: 'level ${level.id} runs slower than the one before it');
+      expect(level.hopPeriod, lessThanOrEqualTo(lastPeriod + 1e-9),
+          reason: 'level ${level.id} hops slower than the one before it');
+      lastSpeed = level.runSpeed;
+      lastPeriod = level.hopPeriod;
     }
   });
 
-  test('the plateau keeps changing what it asks for', () {
-    // Difficulty is flat past the ramp, so variety is the only thing keeping
-    // levels apart. Check the archetypes actually get used.
+  test('the last level is the hardest the pack gets', () {
+    // The ceilings, and where they come from. Speed is bounded by section 5:
+    // the camera shows 470 units ahead and every obstacle must be visible for
+    // 1.5 seconds, so 470 / 1.5 = 313 is the fastest the game can be read at.
+    // Spacing is bounded by the bat, which needs 130 units clear either side.
+    final last = levels.last;
+    final firstPlateau = levels.firstWhere((l) => l.id == kRampEndLevel + 1);
+
+    expect(last.runSpeed, 310);
+    expect(last.runSpeed / 1, lessThanOrEqualTo(470 / 1.5),
+        reason: 'faster than this and an obstacle cannot be read in time');
+    expect(last.hopPeriod, closeTo(0.95, 0.01));
+
+    int obstaclesIn(LevelModel l) =>
+        l.bolted.length + l.hoppers.length + l.blades.length +
+        l.stones.length + l.fires.length + l.bats.length + l.spiders.length;
+
+    expect(obstaclesIn(last), greaterThan(obstaclesIn(firstPlateau)),
+        reason: 'the end of the pack has to actually be denser than the start '
+            'of it, or the second climb bought nothing');
+  });
+
+  test('every archetype keeps changing what it asks for', () {
+    // Difficulty rises only slowly past the ramp, so variety is still most of
+    // what keeps levels apart. Check the archetypes actually get used.
     final used = <String>{
       for (var id = kRampEndLevel + 1; id <= kTotalLevels; id++)
         archetypeFor(id).name,

@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../../data/achievement_rules.dart';
 import '../../data/achievements.dart';
 import '../../data/ads.dart';
+import '../../data/cloud_save.dart';
 import '../../data/leaderboards.dart';
 import '../../data/level_repository.dart';
 import '../../data/progress_store.dart';
@@ -85,6 +86,11 @@ class _GameScreenState extends State<GameScreen> {
   int _coins = 0;
   double _seconds = 0;
   double? _previousBest;
+
+  /// Lives bought back with an ad on this attempt, capped at
+  /// [kMaxRewardedLives]. Reset by [_restart], and naturally zero on a new
+  /// level because that is a new screen.
+  int _revivesUsed = 0;
 
   LevelModel get _level => widget.level;
   bool get _hasNext => _level.id < widget.levelCount;
@@ -211,10 +217,16 @@ class _GameScreenState extends State<GameScreen> {
     );
 
     // Same standing as an achievement: a note sent after the fact, awaited by
-    // nothing on screen, and read by no part of a run. All four figures are
-    // taken off the store rather than off this run, so a replay of an old
-    // level submits the same totals as anything else.
+    // nothing on screen, and read by no part of a run. The figure is taken off
+    // the store rather than off this run, so a replay of an old level submits
+    // the same total as anything else.
     await leaderboards.submitTotals(progressStore);
+
+    // Queued rather than sent. Finishing a level is the moment there is
+    // something new worth keeping, but a player running through short levels
+    // would upload every thirty seconds, so the write waits for the run to
+    // settle. Returns immediately either way.
+    cloudSave.scheduleSave();
   }
 
   /// The last life went, which is the only failure the game has: an ordinary
@@ -252,8 +264,17 @@ class _GameScreenState extends State<GameScreen> {
   /// still there with the same three ways out. A run is never lost because an
   /// ad failed to play.
   Future<void> _watchForExtraLife() async {
+    // Guarded here as well as in the panel, because the panel is only a view:
+    // an ad that finished as the count ran out must not slip a third life
+    // through on a callback.
+    if (_revivesUsed >= kMaxRewardedLives) return;
+
     final earned = await adsController.showForExtraLife();
     if (!mounted || !earned) return;
+
+    // Counted only once the SDK says the ad was watched, so an ad closed early
+    // costs the player nothing — neither a life nor one of their two chances.
+    _revivesUsed++;
 
     _game.overlays.remove(_failed);
     _game.revive();
@@ -266,6 +287,9 @@ class _GameScreenState extends State<GameScreen> {
       ..remove(_failed)
       ..remove(_complete);
     _game.paused = false;
+    // A new attempt, so the two chances come back. The cap is on grinding one
+    // attempt out an ad at a time, not on how often a level may be played.
+    _revivesUsed = 0;
     _game.restart();
     _focus.requestFocus();
   }
@@ -356,6 +380,7 @@ class _GameScreenState extends State<GameScreen> {
                   onRetry: _restart,
                   onLevels: _goToLevelSelect,
                   onExtraLife: _watchForExtraLife,
+                  extraLivesLeft: kMaxRewardedLives - _revivesUsed,
                 ),
             _pause: (context, game) => PauseMenu(
                   levelId: _level.id,

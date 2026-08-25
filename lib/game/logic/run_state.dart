@@ -5,6 +5,19 @@ import 'physics.dart';
 
 const int kStartingLives = 3;
 
+/// How many lives a player may buy back with a rewarded ad on one attempt at a
+/// level, before the level starts again from the beginning.
+///
+/// A cap rather than an open offer, and the number is the point. Without one a
+/// stubborn player could sit on the last checkpoint watching ads forever, and
+/// a level that can be ground out an ad at a time is not a level any more —
+/// the pack is built to be learned by repetition, and the run that teaches you
+/// the level is the run you start from x = 0.
+///
+/// Two is what a bad patch of luck costs. Past that the level is asking to be
+/// learned rather than paid for.
+const int kMaxRewardedLives = 2;
+
 enum RunStatus { running, dead, won }
 
 /// The two things the player can do, plus doing nothing.

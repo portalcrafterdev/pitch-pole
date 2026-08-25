@@ -308,6 +308,116 @@ class ProgressStore extends ChangeNotifier {
     await _prefs?.setString(_controlsKey, scheme.name);
   }
 
+  /// Everything worth carrying to another device, as plain JSON.
+  ///
+  /// Only levels that have actually been played appear, so a player on level 40
+  /// uploads a few hundred bytes rather than a file with ten thousand empty
+  /// entries in it.
+  ///
+  /// The settings are deliberately left out. How loud a phone is, and whether
+  /// it uses halves or buttons, is a fact about that phone rather than about
+  /// the player — carrying it across would change a device's controls out from
+  /// under somebody who never asked for that.
+  Map<String, dynamic> toSnapshot() => {
+        'v': 1,
+        'stars': {for (final e in _stars.entries) '${e.key}': e.value},
+        'best': {for (final e in _bestSeconds.entries) '${e.key}': e.value},
+        'coins': {for (final e in _bestCoins.entries) '${e.key}': e.value},
+        'coinsOf': {for (final e in _coinTotals.entries) '${e.key}': e.value},
+        'deaths': {for (final e in _deaths.entries) '${e.key}': e.value},
+        'streak': _streak,
+        if (_lastPlayedDay != null) 'streakDay': _lastPlayedDay,
+      };
+
+  /// Folds a snapshot from another device into this one, keeping whichever
+  /// side is better for every single value.
+  ///
+  /// Merging rather than choosing is the whole design. "Newest wins" is what
+  /// makes a player lose an evening's play because they opened the game on a
+  /// tablet, and almost everything here is a personal best, so there is no
+  /// genuine conflict to resolve: more stars, fewer seconds and more coins are
+  /// all unambiguously better.
+  ///
+  /// **Every rule below is idempotent**, which matters more than it looks:
+  /// merging twice has to give the same answer as merging once, because a
+  /// device can and will sync the same save repeatedly. That is why deaths
+  /// take the larger count rather than the sum. Adding would double on the
+  /// second merge, then double again, and hand out [Ach.stubborn] to somebody
+  /// who never earned it.
+  Future<void> mergeSnapshot(Map<String, dynamic> snapshot) async {
+    Map<int, num> read(String key) {
+      final raw = snapshot[key];
+      if (raw is! Map) return const {};
+      final out = <int, num>{};
+      for (final entry in raw.entries) {
+        final id = int.tryParse('${entry.key}');
+        final value = entry.value;
+        if (id != null && value is num) out[id] = value;
+      }
+      return out;
+    }
+
+    for (final e in read('stars').entries) {
+      if (e.value.toInt() > starsFor(e.key)) _stars[e.key] = e.value.toInt();
+    }
+    for (final e in read('best').entries) {
+      final mine = _bestSeconds[e.key];
+      if (mine == null || e.value < mine) _bestSeconds[e.key] = e.value * 1.0;
+    }
+    for (final e in read('coins').entries) {
+      if (e.value.toInt() > bestCoinsFor(e.key)) {
+        _bestCoins[e.key] = e.value.toInt();
+      }
+    }
+    for (final e in read('coinsOf').entries) {
+      // How many coins a level holds is a fact about the level, so the two
+      // sides can only disagree if one of them is stale.
+      if (e.value.toInt() > (_coinTotals[e.key] ?? 0)) {
+        _coinTotals[e.key] = e.value.toInt();
+      }
+    }
+    for (final e in read('deaths').entries) {
+      if (e.value.toInt() > deathsFor(e.key)) _deaths[e.key] = e.value.toInt();
+    }
+
+    final theirStreak = (snapshot['streak'] as num?)?.toInt() ?? 0;
+    if (theirStreak > _streak) {
+      _streak = theirStreak;
+      // Taken together with the streak it belongs to. A long streak with the
+      // wrong day attached would be read as broken and shown as zero.
+      final day = (snapshot['streakDay'] as num?)?.toInt();
+      if (day != null) _lastPlayedDay = day;
+    }
+
+    notifyListeners();
+    await _writeAll();
+  }
+
+  /// Writes the whole of progress back to disk. Only used after a merge, which
+  /// can touch any number of levels at once.
+  Future<void> _writeAll() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    for (final e in _stars.entries) {
+      await prefs.setInt('$_starsPrefix${e.key}', e.value);
+    }
+    for (final e in _bestSeconds.entries) {
+      await prefs.setDouble('$_bestPrefix${e.key}', e.value);
+    }
+    for (final e in _bestCoins.entries) {
+      await prefs.setInt('$_coinsPrefix${e.key}', e.value);
+    }
+    for (final e in _coinTotals.entries) {
+      await prefs.setInt('$_coinTotalPrefix${e.key}', e.value);
+    }
+    for (final e in _deaths.entries) {
+      await prefs.setInt('$_deathsPrefix${e.key}', e.value);
+    }
+    await prefs.setInt(_streakKey, _streak);
+    final day = _lastPlayedDay;
+    if (day != null) await prefs.setInt(_streakDayKey, day);
+  }
+
   Future<void> resetProgress() async {
     final ids = {
       ..._stars.keys,

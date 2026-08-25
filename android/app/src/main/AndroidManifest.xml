@@ -8,7 +8,8 @@
     <application
         android:label="Pitchpole"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:appCategory="game">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -41,6 +42,13 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="@string/admob_app_id" />
+        <!-- Which of Android's Game Mode interventions this game accepts.
+             android:appCategory="game" above is what makes the system treat it
+             as a game at all; this says what it may do about it. See the
+             reasoning in res/xml/game_mode_config.xml. -->
+        <meta-data
+            android:name="android.game_mode_config"
+            android:resource="@xml/game_mode_config" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

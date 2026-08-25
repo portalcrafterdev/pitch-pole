@@ -13,6 +13,7 @@ class LevelFailed extends StatelessWidget {
     required this.onRetry,
     required this.onLevels,
     required this.onExtraLife,
+    required this.extraLivesLeft,
   });
 
   final VoidCallback onRetry;
@@ -20,6 +21,11 @@ class LevelFailed extends StatelessWidget {
 
   /// Watch an ad and carry on from the last checkpoint with one more life.
   final VoidCallback onExtraLife;
+
+  /// How many more lives this attempt may still buy back, out of the two a
+  /// level allows. At zero the offer is gone and the only way on is to run the
+  /// level again from the start.
+  final int extraLivesLeft;
 
   @override
   Widget build(BuildContext context) {
@@ -32,10 +38,13 @@ class LevelFailed extends StatelessWidget {
   }
 
   Widget _build() {
-    // Only offered when an ad is actually loaded. A button that promises a
-    // life and then cannot deliver one is worse than no button: the player
-    // has already decided to accept the trade by the time it fails.
-    final canRevive = adsController.canOfferExtraLife;
+    // Two gates, and they are different things. The count is a rule of the
+    // game; the loaded ad is a fact about the network. Either one closes the
+    // offer, and a button that promises a life it cannot deliver is worse than
+    // no button — the player has already accepted the trade by the time it
+    // fails.
+    final spent = extraLivesLeft <= 0;
+    final canRevive = !spent && adsController.canOfferExtraLife;
 
     return OverlayPanel(
       title: 'Out of lives',
@@ -43,8 +52,15 @@ class LevelFailed extends StatelessWidget {
       subtitle: canRevive
           ? 'Or take one more life and pick the run up at the last '
               'checkpoint.'
-          : 'Back to the start. The level never changes, so the run you '
-              'learn is the run that works.',
+          // Said plainly when the two are gone, rather than letting the button
+          // vanish and leaving the player to wonder whether the game is
+          // broken or the network is.
+          : spent
+              ? 'That was the second extra life, and two is all a level '
+                  'gives. Back to the start — the level never changes, so the '
+                  'run you learn is the run that works.'
+              : 'Back to the start. The level never changes, so the run you '
+                  'learn is the run that works.',
       actions: [
         if (canRevive)
           PanelButton(

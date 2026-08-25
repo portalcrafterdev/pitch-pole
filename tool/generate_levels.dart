@@ -54,19 +54,26 @@ const String _cacheDir = '.level_cache';
 /// Bump when something changes inside the generator that the signature below
 /// cannot see — a tweak to `_slots`, a new phase rule, anything that changes
 /// what a level contains without changing a constant this file reads.
-const int _generatorVersion = 2;
+const int _generatorVersion = 3;
 
 /// Everything that decides what `generateLevel(id)` produces.
 ///
-/// Deliberately does **not** include [kTotalLevels]. A level is a pure
-/// function of its own id, so making the pack longer leaves every already
-/// solved level exactly as it was, and a cache built for 1,500 is still valid
-/// for 10,000.
+/// [kTotalLevels] is part of this now, and that is a correctness fix rather
+/// than a tidy-up. It used to be left out on the grounds that a level is a
+/// pure function of its own id, so lengthening the pack left every solved
+/// level untouched and a cache built for 1,500 was still good for 10,000.
+///
+/// That stopped being true when difficulty started climbing all the way to the
+/// end of the pack: [lateRampAt] divides by `kTotalLevels - kRampEndLevel`, so
+/// every level past 300 now depends on how long the pack is. Leaving it out
+/// would let a cache built for one length be reused for another and quietly
+/// ship levels that no longer match the code that claims to describe them.
 String _signature() {
   final buffer = StringBuffer()
     ..write('v$_generatorVersion;')
     ..write('first=$kFirstGeneratedLevel;')
     ..write('ramp=$kRampEndLevel;')
+    ..write('total=$kTotalLevels;')
     ..write('bat=$kBatIntroLevel;spider=$kSpiderIntroLevel;');
   for (final archetype in kArchetypes) {
     buffer.write('${archetype.name}[');
