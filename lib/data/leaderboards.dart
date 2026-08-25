@@ -77,6 +77,7 @@ abstract final class Lb {
     'stars_earned',
     'Stars Earned',
     max: 30000,
+    androidId: 'CgkIsZW9kpIHEAIQIQ',
   );
 
   static const List<LeaderboardSpec> all = [starsEarned];

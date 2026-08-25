@@ -125,6 +125,11 @@ class _GameScreenState extends State<GameScreen> {
   /// nothing is loaded, so this is not a wait the player can be made to sit
   /// through: no ad means the run simply starts.
   Future<void> _openLevel() async {
+    // Counted here rather than on a win, so an evening spent failing a hard
+    // level still counts as having played. Before the ad, because whether an
+    // ad happened to be loaded has nothing to do with whether they turned up.
+    unawaited(progressStore.notePlayed());
+
     await adsController.showAtBreak();
     if (!mounted) return;
     _game.paused = false;

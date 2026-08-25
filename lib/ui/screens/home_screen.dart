@@ -139,6 +139,7 @@ class HomeScreen extends StatelessWidget {
                                           solved: progressStore.solvedCount,
                                           levels: levelCount,
                                           stars: progressStore.totalStars,
+                                          streak: progressStore.streak,
                                         ),
                                       ),
                                     ],
@@ -420,11 +421,17 @@ class _ScoreChip extends StatelessWidget {
     required this.solved,
     required this.levels,
     required this.stars,
+    required this.streak,
   });
 
   final int solved;
   final int levels;
   final int stars;
+
+  /// Days played in a row. Zero is not drawn: a brand new player being shown a
+  /// nothing they have already failed at is a poor first thing to read, and a
+  /// broken streak does not need a badge to announce itself.
+  final int streak;
 
   @override
   Widget build(BuildContext context) {
@@ -460,6 +467,22 @@ class _ScoreChip extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (streak > 0) ...[
+            const SizedBox(width: 10),
+            const Icon(Icons.local_fire_department_rounded,
+                size: 16, color: MenuPalette.friend),
+            const SizedBox(width: 4),
+            Text(
+              // Singular on day one, because "1 days" is the kind of thing
+              // that makes a game look unfinished.
+              streak == 1 ? '1 day' : '$streak days',
+              style: const TextStyle(
+                color: MenuPalette.ink,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
     );

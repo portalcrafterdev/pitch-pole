@@ -44,20 +44,29 @@ either clips a legitimate player or lets a tampered score stand.
 **Two of these are one-way doors.** *Ordering type* and *score format* cannot be
 changed once the board is published. Get them right before publishing.
 
-## Then
+## Done
 
-1. Save it as a **draft**, and publish it with the game.
-2. Copy the generated ID (it looks like `CgkIsZW9kpIHEAIQBw`).
-3. Paste it into `Lb.starsEarned` in `lib/data/leaderboards.dart` as
-   `androidId:`.
+The board exists and its id is wired in:
 
-Until that id is filled in, the game tracks the total and sends nothing — the
-same thing that happens to a player who never signs in, and deliberately silent
-rather than an error. `test/leaderboards_test.dart` asserts it is still empty,
-so filling it in is a deliberate act that has to update that test too.
+```
+Lb.starsEarned.androidId = 'CgkIsZW9kpIHEAIQIQ'
+```
+
+Same `CgkIsZW9kpIHEAIQ` project prefix as the 32 achievements, so it belongs to
+the same Play Games Services project. `test/leaderboards_test.dart` now asserts
+the id is present and looks like a Play id, rather than asserting it is empty.
+
+What is still outstanding:
+
+1. The board is a **draft** until it is published with the game.
+2. Your account has to be on the **Testers** list (left sidebar, under Setup and
+   management) or sign in fails and the board stays invisible, however correct
+   everything else is.
 
 `iosId` stays empty until the game is set up in App Store Connect; Game Center
-assigns its own ids and a Play id means nothing to Apple.
+assigns its own ids and a Play id means nothing to Apple. On iOS the board is
+tracked and never submitted, which is the same thing that happens to a player
+who never signs in, and deliberately silent rather than an error.
 
 Tamper protection is on by default for new Android leaderboards and takes up to
 24 hours to take effect.

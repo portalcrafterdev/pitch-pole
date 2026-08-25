@@ -26,16 +26,26 @@ void main() {
       expect(Lb.all, [Lb.starsEarned]);
     });
 
-    test('every board is unwired until Play Console has been told', () {
-      // The ids are generated when the boards are created in the console and
-      // pasted back here, exactly as the achievement ids were. Until then the
-      // game tracks all of this happily and sends none of it, which is the
-      // same thing that happens to a player who never signs in.
+    test('the board carries the id Play Console assigned it', () {
+      // Without an id nothing is ever submitted, and nothing complains: the
+      // send is skipped silently, which is right for a platform that is not
+      // set up and wrong for one that is.
       for (final board in Lb.all) {
-        expect(board.androidId, isEmpty,
-            reason: '${board.name} has an id now, so update this test');
-        expect(board.iosId, isEmpty);
-        expect(board.wired, isFalse);
+        expect(board.androidId, isNotEmpty,
+            reason: '${board.name} has no Play Games id');
+        expect(board.androidId, startsWith('CgkI'),
+            reason: '${board.name} does not look like a Play Games id');
+      }
+    });
+
+    test('iOS is deliberately unwired, and silent about it', () {
+      // Game Center assigns its own ids and the game is not set up there yet.
+      // The point of this test is that it is a decision rather than an
+      // oversight: when iOS is done, these stop being empty and this test is
+      // what has to be updated to say so.
+      for (final board in Lb.all) {
+        expect(board.iosId, isEmpty,
+            reason: '${board.name} has an iOS id now, so update this test');
       }
     });
 

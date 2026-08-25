@@ -23,6 +23,8 @@ class ProgressStore extends ChangeNotifier {
   static const String _coinsPrefix = 'coins.';
   static const String _coinTotalPrefix = 'coinsOf.';
   static const String _deathsPrefix = 'deaths.';
+  static const String _streakKey = 'streak.count';
+  static const String _streakDayKey = 'streak.lastDay';
   static const String _hapticsKey = 'settings.haptics';
   static const String _soundKey = 'settings.sound';
   static const String _musicKey = 'settings.music';
@@ -43,6 +45,15 @@ class ProgressStore extends ChangeNotifier {
 
   /// Lives lost per level, all time. Only an achievement reads this.
   final Map<int, int> _deaths = {};
+
+  /// Days played in a row, and the day the last one was counted.
+  ///
+  /// The day is stored as a count of local days rather than a timestamp, so
+  /// "did you play today" means the player's today and not UTC's. A player in
+  /// Kolkata who plays at 1am should not be told they missed a day because it
+  /// was still yesterday in Greenwich.
+  int _streak = 0;
+  int? _lastPlayedDay;
   bool _haptics = true;
   bool _sound = true;
   bool _music = true;
@@ -91,6 +102,8 @@ class ProgressStore extends ChangeNotifier {
         if (id != null && coins != null) _bestCoins[id] = coins;
       }
     }
+    _streak = prefs.getInt(_streakKey) ?? 0;
+    _lastPlayedDay = prefs.getInt(_streakDayKey);
     _haptics = prefs.getBool(_hapticsKey) ?? true;
     _sound = prefs.getBool(_soundKey) ?? true;
     _music = prefs.getBool(_musicKey) ?? true;
@@ -146,6 +159,53 @@ class ProgressStore extends ChangeNotifier {
       if (total != null && total > 0 && entry.value >= total) swept++;
     }
     return swept;
+  }
+
+  /// Which local day [when] falls on, counted from the epoch.
+  ///
+  /// Built from the calendar fields rather than by dividing a timestamp, so a
+  /// day is a real local day: one that daylight saving made 23 hours long is
+  /// still one day, and the boundary is the player's midnight.
+  static int dayIndex(DateTime when) =>
+      DateTime(when.year, when.month, when.day)
+          .difference(DateTime(1970))
+          .inDays;
+
+  /// Days played in a row, or 0 once a day has been missed.
+  ///
+  /// Yesterday still counts as alive. A player who played yesterday and has
+  /// not opened the game yet today is mid streak, not broken — showing 0 all
+  /// morning would tell them they had lost something they still have. The
+  /// streak only reads 0 once a whole day has gone by without a run.
+  int streakOn(DateTime now) {
+    final last = _lastPlayedDay;
+    if (last == null) return 0;
+    final today = dayIndex(now);
+    return last >= today - 1 ? _streak : 0;
+  }
+
+  int get streak => streakOn(DateTime.now());
+
+  /// Counts today towards the streak. Called when a level is opened.
+  ///
+  /// "Played" is starting a level rather than finishing one, deliberately. A
+  /// player stuck on a hard level can spend an evening on it and clear
+  /// nothing, and taking their streak for that would punish them for the one
+  /// thing the game is asking them to do.
+  Future<void> notePlayed({DateTime? now}) async {
+    final today = dayIndex(now ?? DateTime.now());
+    final last = _lastPlayedDay;
+    if (last == today) return;
+
+    // Yesterday carries on; anything older starts again at today. Not zero:
+    // they are playing, and a run that leaves the counter empty would read as
+    // not having counted.
+    _streak = last == today - 1 ? _streak + 1 : 1;
+    _lastPlayedDay = today;
+    notifyListeners();
+
+    await _prefs?.setInt(_streakKey, _streak);
+    await _prefs?.setInt(_streakDayKey, today);
   }
 
   /// How many times a level has been lost, all time.
@@ -261,7 +321,12 @@ class ProgressStore extends ChangeNotifier {
     _bestCoins.clear();
     _coinTotals.clear();
     _deaths.clear();
+    _streak = 0;
+    _lastPlayedDay = null;
     notifyListeners();
+
+    await _prefs?.remove(_streakKey);
+    await _prefs?.remove(_streakDayKey);
     for (final id in ids) {
       await _prefs?.remove('$_starsPrefix$id');
       await _prefs?.remove('$_bestPrefix$id');
