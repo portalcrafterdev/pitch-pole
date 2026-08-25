@@ -217,4 +217,29 @@ void main() {
     expect(progressStore.totalStars, 0);
     expect(progressStore.isUnlocked(2), isFalse);
   });
+
+  testWidgets('progress outlives the session that made it', (tester) async {
+    // The most basic promise the game makes, and until now nothing held it:
+    // there were tests that a better result replaces a worse one, and that a
+    // reset clears everything, but none that a star was still there after the
+    // app was closed. Every other kind of progress had such a test — the daily
+    // streak, the deaths a level has cost, a restored cloud save — and the one
+    // thing every player actually cares about did not.
+    await progressStore.record(1, 3, 30.0, coins: 33, coinsOnLevel: 33);
+    await progressStore.record(2, 2, 34.5, coins: 11, coinsOnLevel: 40);
+
+    // What a relaunch does: build the store again from what is on disk.
+    await progressStore.load();
+
+    expect(progressStore.starsFor(1), 3);
+    expect(progressStore.starsFor(2), 2);
+    expect(progressStore.bestSecondsFor(1), 30.0);
+    expect(progressStore.bestSecondsFor(2), 34.5);
+    expect(progressStore.bestCoinsFor(1), 33);
+    expect(progressStore.totalStars, 5);
+    expect(progressStore.solvedCount, 2);
+    expect(progressStore.isUnlocked(3), isTrue,
+        reason: 'a player who closed the game must not find level 3 locked '
+            'again when they come back');
+  });
 }
