@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset, Size;
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +18,80 @@ enum ControlScheme {
       values.firstWhere((s) => s.name == value, orElse: () => halves);
 }
 
+/// The three pads of [ControlScheme.buttons].
+///
+/// Where each one sits is the player's to decide. Thumbs are not the same
+/// length, phones are not the same width, and a left handed player wants the
+/// pair and the jump swapped over — none of which one fixed layout can answer.
+enum ControlPad {
+  ceiling(Offset(0.075, 0.62), 62),
+  floor(Offset(0.075, 0.84), 62),
+  jump(Offset(0.915, 0.80), 84);
+
+  const ControlPad(this.home, this.size);
+
+  /// Where the pad sits until it is moved, as a fraction of the screen.
+  ///
+  /// A fraction rather than a point, because a phone held sideways is anywhere
+  /// from 320 to 500 points tall, and a saved point would put a pad off the
+  /// edge of any screen smaller than the one it was placed on.
+  final Offset home;
+
+  /// Diameter in logical pixels before the player has scaled it. Jump is the
+  /// larger of the two, because it is the input pressed most often and the
+  /// worst one to miss.
+  final double size;
+}
+
+/// How much room is kept along the left, right and bottom edges, in logical
+/// pixels.
+///
+/// Not tidiness. The game runs full bleed, so all three of those edges belong
+/// to the system's back and home gestures, and a pad overlapping one loses
+/// presses to Android — silently, and only sometimes, which is the worst way
+/// for an input to fail. It was 10, and a pad at the left edge could not be
+/// tapped at all on a phone with gesture navigation.
+const double kPadEdgeMargin = 26;
+
+/// The bottom edge, kept as its own name because it is the one that costs a
+/// jump rather than a flip.
+const double kPadBottomMargin = kPadEdgeMargin;
+
+/// The top edge, which no gesture claims: the status bar is hidden while the
+/// game is running, so a pad up there only has to stay on screen.
+const double kPadTopMargin = 10;
+
+/// How far a pad may be scaled.
+///
+/// The floor is a pad still comfortably bigger than a fingertip; the ceiling
+/// is one that covers a good part of a landscape phone, which is a fair thing
+/// to want if you are playing with the phone flat on a table. Neither end is
+/// a judgement about what plays well — that is the player's to make.
+const double kMinPadScale = 0.6;
+const double kMaxPadScale = 1.8;
+
+/// Pulls a pad's fractional spot back until the whole pad is on screen and
+/// clear of the gesture strip.
+///
+/// Takes the diameter rather than the pad, because a pad's size is the
+/// player's to change and a stale one would clamp against a circle that is no
+/// longer there.
+///
+/// Applied on every layout rather than only when a pad is dropped, so a layout
+/// arranged on a tablet still has three reachable pads on a phone.
+Offset clampPadSpot(double diameter, Offset spot, Size screen) {
+  if (screen.width <= 0 || screen.height <= 0) return spot;
+  final half = diameter / 2;
+  final minX = (half + kPadEdgeMargin) / screen.width;
+  final minY = (half + kPadTopMargin) / screen.height;
+  final maxX = 1 - minX;
+  final maxY = 1 - (half + kPadBottomMargin) / screen.height;
+  return Offset(
+    minX > maxX ? 0.5 : spot.dx.clamp(minX, maxX),
+    minY > maxY ? 0.5 : spot.dy.clamp(minY, maxY),
+  );
+}
+
 /// Stars per level and the settings toggles. No backend, no account.
 class ProgressStore extends ChangeNotifier {
   static const String _starsPrefix = 'stars.';
@@ -31,6 +107,7 @@ class ProgressStore extends ChangeNotifier {
   static const String _soundVolumeKey = 'settings.soundVolume';
   static const String _musicVolumeKey = 'settings.musicVolume';
   static const String _controlsKey = 'settings.controls';
+  static const String _padPrefix = 'settings.pad.';
 
   SharedPreferences? _prefs;
   final Map<int, int> _stars = {};
@@ -65,12 +142,32 @@ class ProgressStore extends ChangeNotifier {
   double _musicVolume = 1;
   ControlScheme _controls = ControlScheme.halves;
 
+  /// Only the pads the player has actually moved or resized. A pad missing
+  /// from these sits at its [ControlPad.home] at its [ControlPad.size], so the
+  /// defaults can be changed later without having to migrate anybody's saved
+  /// layout.
+  final Map<ControlPad, Offset> _padSpots = {};
+  final Map<ControlPad, double> _padScales = {};
+
   bool get hapticsEnabled => _haptics;
   bool get soundEnabled => _sound;
   bool get musicEnabled => _music;
   double get soundVolume => _soundVolume;
   double get musicVolume => _musicVolume;
   ControlScheme get controlScheme => _controls;
+
+  /// Where a pad sits, as a fraction of the screen.
+  Offset padSpot(ControlPad pad) => _padSpots[pad] ?? pad.home;
+
+  /// How much bigger or smaller than standard the player has made a pad.
+  double padScale(ControlPad pad) => _padScales[pad] ?? 1;
+
+  /// The pad's drawn and pressed diameter, in logical pixels.
+  double padDiameter(ControlPad pad) => pad.size * padScale(pad);
+
+  /// Whether the player has changed anything, so the arrange screen knows
+  /// whether it has a layout worth offering to put back.
+  bool get padsMoved => _padSpots.isNotEmpty || _padScales.isNotEmpty;
 
   Future<void> load() async {
     final prefs = _prefs = await SharedPreferences.getInstance();
@@ -110,6 +207,21 @@ class ProgressStore extends ChangeNotifier {
     _soundVolume = (prefs.getDouble(_soundVolumeKey) ?? 1).clamp(0.0, 1.0);
     _musicVolume = (prefs.getDouble(_musicVolumeKey) ?? 1).clamp(0.0, 1.0);
     _controls = ControlScheme.fromName(prefs.getString(_controlsKey));
+
+    _padSpots.clear();
+    _padScales.clear();
+    for (final pad in ControlPad.values) {
+      final x = prefs.getDouble('$_padPrefix${pad.name}.x');
+      final y = prefs.getDouble('$_padPrefix${pad.name}.y');
+      // Both or neither. Half a coordinate is a half written layout, and
+      // pairing it with a default would put the pad somewhere nobody chose.
+      if (x != null && y != null) _padSpots[pad] = Offset(x, y);
+
+      final scale = prefs.getDouble('$_padPrefix${pad.name}.s');
+      if (scale != null) {
+        _padScales[pad] = scale.clamp(kMinPadScale, kMaxPadScale);
+      }
+    }
     notifyListeners();
   }
 
@@ -308,16 +420,50 @@ class ProgressStore extends ChangeNotifier {
     await _prefs?.setString(_controlsKey, scheme.name);
   }
 
+  /// Moves a pad. The spot is a fraction of the screen, not a point.
+  Future<void> setPadSpot(ControlPad pad, Offset spot) async {
+    if (_padSpots[pad] == spot) return;
+    _padSpots[pad] = spot;
+    notifyListeners();
+    await _prefs?.setDouble('$_padPrefix${pad.name}.x', spot.dx);
+    await _prefs?.setDouble('$_padPrefix${pad.name}.y', spot.dy);
+  }
+
+  /// Resizes a pad, as a multiple of its standard diameter.
+  Future<void> setPadScale(ControlPad pad, double scale) async {
+    final level = scale.clamp(kMinPadScale, kMaxPadScale);
+    if (padScale(pad) == level) return;
+    _padScales[pad] = level;
+    notifyListeners();
+    await _prefs?.setDouble('$_padPrefix${pad.name}.s', level);
+  }
+
+  /// Puts all three pads back where they started, at the size they started.
+  Future<void> resetPadLayout() async {
+    if (!padsMoved) return;
+    _padSpots.clear();
+    _padScales.clear();
+    notifyListeners();
+    for (final pad in ControlPad.values) {
+      await _prefs?.remove('$_padPrefix${pad.name}.x');
+      await _prefs?.remove('$_padPrefix${pad.name}.y');
+      await _prefs?.remove('$_padPrefix${pad.name}.s');
+    }
+  }
+
   /// Everything worth carrying to another device, as plain JSON.
   ///
   /// Only levels that have actually been played appear, so a player on level 40
   /// uploads a few hundred bytes rather than a file with ten thousand empty
   /// entries in it.
   ///
-  /// The settings are deliberately left out. How loud a phone is, and whether
-  /// it uses halves or buttons, is a fact about that phone rather than about
-  /// the player — carrying it across would change a device's controls out from
-  /// under somebody who never asked for that.
+  /// The settings are deliberately left out. How loud a phone is, whether it
+  /// uses halves or buttons, and where the pads have been dragged to, are
+  /// facts about that phone rather than about the player — carrying them
+  /// across would change a device's controls out from under somebody who never
+  /// asked for that. The pad layout is the clearest case of the three: one
+  /// arranged for a tablet's thumbs is the right answer on the device it was
+  /// made on and the wrong one everywhere else.
   Map<String, dynamic> toSnapshot() => {
         'v': 1,
         'stars': {for (final e in _stars.entries) '${e.key}': e.value},

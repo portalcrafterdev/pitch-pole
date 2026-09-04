@@ -10,6 +10,7 @@ import '../palette.dart';
 import '../widgets/home_backdrop.dart';
 import '../widgets/sign_in_button.dart';
 import '../widgets/volume_row.dart';
+import 'control_layout_screen.dart';
 import 'game_screen.dart';
 import 'level_select_screen.dart';
 
@@ -616,7 +617,44 @@ class _ControlSchemePicker extends StatelessWidget {
             ],
           ),
         ),
+        // Only offered with buttons on, because with halves there are no pads
+        // to place. A row that opens a screen with nothing in it is worse than
+        // a row that is not there.
+        if (progressStore.controlScheme == ControlScheme.buttons)
+          const _ArrangePadsRow(),
       ],
+    );
+  }
+}
+
+/// Opens the screen where the three pads are dragged into place.
+class _ArrangePadsRow extends StatelessWidget {
+  const _ArrangePadsRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.open_with_rounded, color: MenuPalette.levels),
+      title: const Text(
+        'Arrange the buttons',
+        style: TextStyle(color: MenuPalette.ink, fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(
+        progressStore.padsMoved
+            ? 'Moved. Drag them again, or put them back.'
+            : 'Drag each pad to wherever your thumbs are',
+        style: const TextStyle(color: MenuPalette.inkSoft, fontSize: 12),
+      ),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: MenuPalette.inkSoft,
+      ),
+      onTap: () {
+        MenuAudio.instance.tap();
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ControlLayoutScreen()),
+        );
+      },
     );
   }
 }

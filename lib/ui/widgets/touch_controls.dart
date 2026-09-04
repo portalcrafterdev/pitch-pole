@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/progress_store.dart';
 import '../../game/logic/run_state.dart';
@@ -172,9 +173,18 @@ class _HalfState extends State<_Half> {
   }
 }
 
-/// Up and down on the left, jump on the right. The flips are absolute here,
-/// exactly like the arrow keys: pressing the surface you are already on does
-/// nothing, so there is no toggle to lose track of.
+/// Three pads, wherever the player has put them. Up and down on the left and
+/// jump on the right to begin with, but none of that is fixed: each pad is
+/// dragged to its own spot in the arrange screen and kept there.
+///
+/// The flips are absolute here, exactly like the arrow keys: pressing the
+/// surface you are already on does nothing, so there is no toggle to lose
+/// track of.
+///
+/// A pad is never dragged during a run. Every touch in a level is an input, so
+/// a jump press that slid a few points would become a move instead of a jump —
+/// the same failure as a thumb resting on live screen, arriving from the other
+/// direction. Moving one is a deliberate trip to [ControlLayoutScreen].
 class _Buttons extends StatelessWidget {
   const _Buttons({
     required this.onInput,
@@ -190,46 +200,146 @@ class _Buttons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      // The game runs full bleed, so the reported insets are zero and a pad
-      // would sit right on the bottom edge, where the system's back and home
-      // gestures live. A press meant for jump would leave the game.
-      minimum: const EdgeInsets.fromLTRB(14, 14, 14, 30),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _Pad(
-                icon: Icons.keyboard_double_arrow_up_rounded,
-                label: showHints ? 'CEILING' : null,
-                accent: Palette.door,
-                // The one you are already on is shown as spent, so the pair
-                // reads as a state rather than as two identical buttons.
-                current: gravityUp,
-                onTap: enabled ? () => onInput(RunInput.flipUp) : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screen = constraints.biggest;
+        return Stack(
+          // The rest of the screen is inert: in this scheme only the pads take
+          // a tap, so there is nothing here to sit under a resting thumb.
+          children: [
+            for (final pad in padsBackToFront(progressStore.padDiameter))
+              PlacedPad(
+                key: ValueKey(pad),
+                pad: pad,
+                spot: progressStore.padSpot(pad),
+                screen: screen,
+                label: showHints ? padLabel(pad) : null,
+                current: switch (pad) {
+                  ControlPad.ceiling => gravityUp,
+                  ControlPad.floor => !gravityUp,
+                  ControlPad.jump => false,
+                },
+                onTap: enabled ? () => onInput(padInput(pad)) : null,
               ),
-              const SizedBox(height: 10),
-              _Pad(
-                icon: Icons.keyboard_double_arrow_down_rounded,
-                label: showHints ? 'FLOOR' : null,
-                accent: Palette.door,
-                current: !gravityUp,
-                onTap: enabled ? () => onInput(RunInput.flipDown) : null,
-              ),
-            ],
-          ),
-          // Inert: in this scheme only the pads take a tap.
-          const Expanded(child: SizedBox.expand()),
-          _Pad(
-            icon: Icons.height_rounded,
-            label: showHints ? 'JUMP' : null,
-            accent: Palette.text,
-            size: 84,
-            onTap: enabled ? () => onInput(RunInput.jump) : null,
-          ),
-        ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// How much room a pad's label takes under its circle.
+const double kPadLabelHeight = 14;
+
+/// The pads largest first, so the smallest is painted — and therefore hit
+/// tested — on top.
+///
+/// Sizes are the player's to set, and nothing stops them putting a large pad
+/// over a small one. Ordering by size means the small one always keeps its own
+/// circle: it can still be pressed in a level, and still be picked up and
+/// moved in the arrange screen. Painted in a fixed order instead, a big jump
+/// pad could swallow a ceiling pad whole and there would be nothing left to
+/// grab.
+List<ControlPad> padsBackToFront(double Function(ControlPad pad) diameter) =>
+    ControlPad.values.toList()
+      ..sort((a, b) => diameter(b).compareTo(diameter(a)));
+
+/// What each pad does. Absolute, exactly like the arrow keys: pressing the
+/// surface you are already on does nothing, so there is no toggle to lose
+/// track of.
+RunInput padInput(ControlPad pad) => switch (pad) {
+      ControlPad.ceiling => RunInput.flipUp,
+      ControlPad.floor => RunInput.flipDown,
+      ControlPad.jump => RunInput.jump,
+    };
+
+String padLabel(ControlPad pad) => switch (pad) {
+      ControlPad.ceiling => 'CEILING',
+      ControlPad.floor => 'FLOOR',
+      ControlPad.jump => 'JUMP',
+    };
+
+Color padAccent(ControlPad pad) =>
+    pad == ControlPad.jump ? Palette.text : Palette.door;
+
+IconData padIcon(ControlPad pad) => switch (pad) {
+      ControlPad.ceiling => Icons.keyboard_double_arrow_up_rounded,
+      ControlPad.floor => Icons.keyboard_double_arrow_down_rounded,
+      ControlPad.jump => Icons.height_rounded,
+    };
+
+/// One pad at the fractional spot the player put it, with its label hung
+/// underneath rather than inside the circle.
+///
+/// Shared with the arrange screen so that what is dragged there and what is
+/// pressed in a run are laid out by the same arithmetic. Two copies of this
+/// sum would drift, and a pad that moves when you leave the editor is worse
+/// than a pad that cannot be moved at all.
+class PlacedPad extends StatelessWidget {
+  const PlacedPad({
+    super.key,
+    required this.pad,
+    required this.spot,
+    required this.screen,
+    this.onTap,
+    this.label,
+    this.current = false,
+    this.dragging = false,
+    this.diameter,
+    this.onDrag,
+    this.onPinch,
+    this.onDrop,
+  });
+
+  final ControlPad pad;
+  final Offset spot;
+  final Size screen;
+  final VoidCallback? onTap;
+  final String? label;
+
+  /// True when pressing this would do nothing, because the character is
+  /// already on that surface.
+  final bool current;
+
+  /// Drawn lifted, for the arrange screen.
+  final bool dragging;
+
+  /// The drawn and pressed size, defaulting to whatever the player has set.
+  /// The arrange screen passes its own while a pinch is in flight.
+  final double? diameter;
+
+  /// Set only by the arrange screen. In a level these stay null, so a press
+  /// that slides is still a press and can never turn into a move or a resize.
+  final void Function(Offset delta)? onDrag;
+  final void Function(double scale)? onPinch;
+  final VoidCallback? onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = diameter ?? progressStore.padDiameter(pad);
+    final at = clampPadSpot(size, spot, screen);
+    final centre = Offset(at.dx * screen.width, at.dy * screen.height);
+    final half = size / 2;
+
+    return Positioned(
+      left: centre.dx - half,
+      top: centre.dy - half,
+      width: size,
+      // Room for the label under the circle. The circle keeps its own size, so
+      // where the pad reads as being and where it takes a press are the same
+      // number of points; the label only widens what can be grabbed to drag.
+      height: size + (label == null ? 0 : kPadLabelHeight),
+      child: _Pad(
+        icon: padIcon(pad),
+        accent: padAccent(pad),
+        size: size,
+        label: label,
+        current: current,
+        lifted: dragging,
+        onTap: onTap,
+        onDrag: onDrag,
+        onPinch: onPinch,
+        onDrop: onDrop,
       ),
     );
   }
@@ -243,6 +353,10 @@ class _Pad extends StatefulWidget {
     this.label,
     this.size = 62,
     this.current = false,
+    this.lifted = false,
+    this.onDrag,
+    this.onPinch,
+    this.onDrop,
   });
 
   final IconData icon;
@@ -250,10 +364,16 @@ class _Pad extends StatefulWidget {
   final VoidCallback? onTap;
   final String? label;
   final double size;
+  final void Function(Offset delta)? onDrag;
+  final void Function(double scale)? onPinch;
+  final VoidCallback? onDrop;
 
   /// True when pressing this would do nothing, because the character is
   /// already on that surface.
   final bool current;
+
+  /// Drawn as picked up, while it is being dragged in the arrange screen.
+  final bool lifted;
 
   @override
   State<_Pad> createState() => _PadState();
@@ -275,24 +395,52 @@ class _PadState extends State<_Pad> {
   Widget build(BuildContext context) {
     final live = widget.onTap != null && !widget.current;
     final accent = widget.accent;
+    final pressed = _down || widget.lifted;
+
+    final onDrag = widget.onDrag;
+    final editing = onDrag != null;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _press(),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      // One recognizer for both, because a scale gesture is a pan gesture with
+      // more fingers: a single finger reports a focal point that moves and a
+      // scale of 1, and a second finger starts changing the scale. Two
+      // separate recognizers would fight over the same pointers.
+      onScaleStart: editing ? (_) => HapticFeedback.selectionClick() : null,
+      onScaleUpdate: !editing
+          ? null
+          : (d) {
+              if (d.pointerCount > 1) {
+                widget.onPinch?.call(d.scale);
+              } else {
+                onDrag(d.focalPointDelta);
+              }
+            },
+      onScaleEnd: editing ? (_) => widget.onDrop?.call() : null,
+      // A stack rather than a column, because the box this sits in is exactly
+      // the circle plus [kPadLabelHeight] and a column that adds up to its own
+      // box to the last decimal place will overflow on the rounding.
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             width: widget.size,
             height: widget.size,
-            transform: _down
-                ? (Matrix4.identity()..scaleByDouble(0.92, 0.92, 1, 1))
-                : Matrix4.identity(),
+            transform: switch ((_down, widget.lifted)) {
+              // Down shrinks, lifted grows. A pad being dragged has to read as
+              // held rather than as pressed, or the arrange screen looks like
+              // it is firing inputs.
+              (true, _) => Matrix4.identity()..scaleByDouble(0.92, 0.92, 1, 1),
+              (_, true) => Matrix4.identity()..scaleByDouble(1.12, 1.12, 1, 1),
+              _ => Matrix4.identity(),
+            },
             transformAlignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: accent.withValues(alpha: _down ? 0.30 : 0.13),
+              color: accent.withValues(alpha: pressed ? 0.30 : 0.13),
               border: Border.all(
                 color: accent.withValues(alpha: live ? 0.62 : 0.24),
                 width: 2,
@@ -304,18 +452,26 @@ class _PadState extends State<_Pad> {
               color: accent.withValues(alpha: live ? 0.95 : 0.42),
             ),
           ),
-          if (widget.label != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              widget.label!,
-              style: TextStyle(
-                color: accent.withValues(alpha: 0.45),
-                fontSize: 9,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w700,
+          if (widget.label != null)
+            Positioned(
+              top: widget.size,
+              left: 0,
+              right: 0,
+              child: Text(
+                widget.label!,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.visible,
+                softWrap: false,
+                style: TextStyle(
+                  color: accent.withValues(alpha: 0.45),
+                  fontSize: 9,
+                  height: 1.3,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ],
         ],
       ),
     );
