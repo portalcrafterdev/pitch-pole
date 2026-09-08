@@ -13,6 +13,7 @@ import 'data/progress_store.dart';
 import 'game/sound.dart';
 import 'ui/palette.dart';
 import 'ui/screens/home_screen.dart';
+import 'ui/widgets/steady_insets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +113,10 @@ class _PitchpoleAppState extends State<PitchpoleApp> {
         ),
         splashFactory: InkRipple.splashFactory,
       ),
+      // Every screen, not just the ones with a grid on them: the bars can
+      // come back over any of them, and a page that reflows underneath a bar
+      // that is about to vanish again is never what was wanted.
+      builder: SteadyInsets.wrap,
       home: const HomeScreen(),
     );
   }
