@@ -13,8 +13,26 @@ import '../palette.dart';
 /// busy and cannot be tapped twice, and signed in shows who. It is never a
 /// gate — the game plays identically without it — so it is styled as a quiet
 /// secondary action, below the two that matter.
+/// What the PROFILE tile on the home screen opens.
+///
+/// Signed in that is the account sheet; signed out it is the sign in itself,
+/// because a profile sheet with no account behind it has nothing in it to
+/// read. One entry point either way, so the tile never has to know which.
+Future<void> openProfile(BuildContext context) =>
+    const SignInButton().openProfile(context);
+
 class SignInButton extends StatelessWidget {
   const SignInButton({super.key, this.compact = false});
+
+  /// See [openProfile].
+  Future<void> openProfile(BuildContext context) async {
+    if (gamesAuth.isSignedIn) {
+      _showAccount(context);
+      return;
+    }
+    if (gamesAuth.state == GamesAuthState.signingIn) return;
+    await _signIn(context);
+  }
 
   final bool compact;
 
@@ -63,17 +81,42 @@ class SignInButton extends StatelessWidget {
                   children: [
                     _Badge(accent: accent),
                     const SizedBox(width: 10),
+                    // Two lines when signed out. The button shares its row
+                    // with LEVELS now, and "SIGN IN WITH PLAY GAMES" across
+                    // half a row arrived ellipsed — which named no service at
+                    // all. Stacked, the verb reads at full size and the
+                    // service still gets said.
                     Flexible(
-                      child: Text(
-                        _label(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: signedIn ? MenuPalette.play : MenuPalette.ink,
-                          fontSize: 12,
-                          letterSpacing: 0.8,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _label(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color:
+                                  signedIn ? MenuPalette.play : MenuPalette.ink,
+                              fontSize: 12,
+                              height: 1.1,
+                              letterSpacing: 0.8,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (_service() != null)
+                            Text(
+                              _service()!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: MenuPalette.inkSoft,
+                                fontSize: 9,
+                                letterSpacing: 0.8,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -106,9 +149,18 @@ class SignInButton extends StatelessWidget {
       case GamesAuthState.signedIn:
         return gamesAuth.playerName?.toUpperCase() ?? 'SIGNED IN';
       case GamesAuthState.signedOut:
-        return 'SIGN IN WITH ${gamesAuth.service.short.toUpperCase()}';
+        return 'SIGN IN';
     }
   }
+
+  /// The platform service, on its own line under the verb.
+  ///
+  /// Only when signed out: once there is an account the name on the button is
+  /// the player's, and saying which service it came from underneath it is
+  /// telling them something they just did.
+  String? _service() => gamesAuth.state == GamesAuthState.signedOut
+      ? gamesAuth.service.short.toUpperCase()
+      : null;
 
   Future<void> _signIn(BuildContext context) async {
     final messenger = ScaffoldMessenger.maybeOf(context);

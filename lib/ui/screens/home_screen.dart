@@ -1,12 +1,17 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../../data/games_auth.dart';
 import '../../data/level_repository.dart';
 import '../../data/menu_audio.dart';
 import '../../data/progress_store.dart';
+import '../../game/scene_theme.dart';
 import '../menu_palette.dart';
 import '../motion.dart';
 import '../overlays/overlay_panel.dart';
 import '../palette.dart';
+import '../widgets/bubble_text.dart';
 import '../widgets/home_backdrop.dart';
 import '../widgets/sign_in_button.dart';
 import '../widgets/volume_row.dart';
@@ -84,8 +89,13 @@ class HomeScreen extends StatelessWidget {
                                       )
                                     else ...[
                                       ConstrainedBox(
+                                        // Narrower than the page. A slab this
+                                        // round needs to be about five times
+                                        // as wide as it is tall or the corners
+                                        // stop reading as a pill and start
+                                        // reading as a rectangle.
                                         constraints: const BoxConstraints(
-                                          maxWidth: 320,
+                                          maxWidth: 364,
                                         ),
                                         child: Column(
                                           children: [
@@ -99,18 +109,27 @@ class HomeScreen extends StatelessWidget {
                                                         : 'CONTINUE',
                                                 icon: Icons.play_arrow_rounded,
                                                 filled: true,
+                                                hero: true,
                                                 accent: MenuPalette.play,
                                                 compact: compact,
-                                                onPressed: () =>
-                                                    _openLevel(context, levelCount),
+                                                onPressed: () => _openLevel(
+                                                    context, levelCount),
                                               ),
                                             ),
+                                            // On top of the lip the slab
+                                            // already carries. Three stacked
+                                            // controls with only the moulded
+                                            // edge between them read as one
+                                            // block of colour rather than as
+                                            // three things you can press.
+                                            SizedBox(height: compact ? 6 : 10),
                                             _PopIn(
                                               order: 2,
                                               child: PanelButton(
                                                 label: 'LEVELS',
                                                 icon: Icons.grid_view_rounded,
                                                 filled: true,
+                                                hero: true,
                                                 accent: MenuPalette.levels,
                                                 compact: compact,
                                                 onPressed: () =>
@@ -121,24 +140,14 @@ class HomeScreen extends StatelessWidget {
                                                 ),
                                               ),
                                             ),
-                                            // Below the two that matter, and
-                                            // quieter than both: the whole
-                                            // game plays the same signed out.
-                                            SizedBox(height: compact ? 2 : 6),
-                                            _PopIn(
-                                              order: 3,
-                                              child:
-                                                  SignInButton(compact: compact),
-                                            ),
                                           ],
                                         ),
                                       ),
                                       SizedBox(height: compact ? 8 : 14),
                                       _PopIn(
                                         order: 4,
-                                        child: _ScoreChip(
+                                        child: _StatBar(
                                           solved: progressStore.solvedCount,
-                                          levels: levelCount,
                                           stars: progressStore.totalStars,
                                           streak: progressStore.streak,
                                         ),
@@ -153,13 +162,40 @@ class HomeScreen extends StatelessWidget {
                       ),
                       // Out of the column entirely, so it costs the layout no
                       // height on a short screen.
+                      // Both out of the column entirely, so they cost the
+                      // layout no height on a short screen. Signing in used to
+                      // be a slab in the middle of the page; it is an account,
+                      // not an action, and it belongs up here with settings.
                       Positioned(
-                        top: 4,
-                        right: 4,
-                        child: _RoundButton(
-                          icon: Icons.settings_rounded,
-                          tooltip: 'Settings',
-                          onPressed: () => _showSettings(context),
+                        top: 2,
+                        right: 12,
+                        child: Row(
+                          children: [
+                            // Named for what pressing it does. Signed out
+                            // that is signing in; once there is an account
+                            // there is nothing left to sign into and the tile
+                            // is the profile it opens.
+                            AnimatedBuilder(
+                              animation: gamesAuth,
+                              builder: (context, _) => _IconTile(
+                                label: gamesAuth.isSignedIn
+                                    ? 'PROFILE'
+                                    : 'SIGN IN',
+                                onPressed: () => openProfile(context),
+                                child: const _MascotFace(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            _IconTile(
+                              label: 'SETTINGS',
+                              onPressed: () => _showSettings(context),
+                              child: const Icon(
+                                Icons.settings_rounded,
+                                size: 24,
+                                color: Color(0xFF4A6C7C),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -237,76 +273,42 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const _ControlSchemePicker(),
-                const Divider(height: 24, indent: 16, endIndent: 16),
-                const _SettingsHeading('AUDIO'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: VolumeRow(
-                    label: 'SOUND',
-                    onIcon: Icons.volume_up_rounded,
-                    offIcon: Icons.volume_off_rounded,
-                    on: progressStore.soundEnabled,
-                    volume: progressStore.soundVolume,
-                    onToggle: () =>
-                        progressStore.setSound(!progressStore.soundEnabled),
-                    onChanged: progressStore.setSoundVolume,
-                  ),
-                ),
-                const _SettingsNote(
-                  'Whoosh on flip, click on jump, thud on landing and death',
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: VolumeRow(
-                    label: 'MUSIC',
-                    onIcon: Icons.music_note_rounded,
-                    offIcon: Icons.music_off_rounded,
-                    on: progressStore.musicEnabled,
-                    volume: progressStore.musicVolume,
-                    onToggle: () =>
-                        progressStore.setMusic(!progressStore.musicEnabled),
-                    onChanged: progressStore.setMusicVolume,
-                  ),
-                ),
-                const _SettingsNote('A quiet loop under the run'),
-                SwitchListTile(
-                  value: progressStore.hapticsEnabled,
-                  onChanged: progressStore.setHaptics,
-                  activeThumbColor: MenuPalette.play,
-                  title: const Text(
-                    'Haptics',
-                    style: TextStyle(
-                      color: MenuPalette.ink,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Vibration on flip and death',
-                    style: TextStyle(color: MenuPalette.inkSoft, fontSize: 12),
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.restart_alt_rounded,
-                    color: Palette.bolted,
-                  ),
-                  title: const Text(
-                    'Reset progress',
-                    style: TextStyle(
-                      color: Palette.bolted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Clears every star and relocks every level',
-                    style: TextStyle(color: MenuPalette.inkSoft, fontSize: 12),
-                  ),
-                  onTap: () async {
-                    await progressStore.resetProgress();
-                    if (context.mounted) Navigator.of(context).pop();
+                // Two columns on a landscape phone. In one, the sheet ran a
+                // long way past the fold, so haptics and Reset progress were
+                // only findable by scrolling something that did not look
+                // scrollable. Side by side it all fits at 360 points.
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 560;
+                    final controls = _SettingsControlsColumn(context: context);
+                    const audio = _SettingsAudioColumn();
+                    if (!wide) {
+                      return const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _SettingsControlsColumn(),
+                          Divider(height: 24, indent: 16, endIndent: 16),
+                          _SettingsAudioColumn(),
+                        ],
+                      );
+                    }
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: controls),
+                          const VerticalDivider(width: 24, indent: 8),
+                          const Expanded(child: audio),
+                        ],
+                      ),
+                    );
                   },
                 ),
+                const Divider(height: 24, indent: 16, endIndent: 16),
+                // Full width rather than in a column: it is a row of six
+                // swatches, and six of anything does not fit in half a
+                // landscape phone.
+                const _SceneryPicker(),
                 const SizedBox(height: 8),
               ],
             ),
@@ -315,6 +317,377 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The left half of the settings sheet: how the game is driven, and the one
+/// destructive thing on the page.
+class _SettingsControlsColumn extends StatelessWidget {
+  const _SettingsControlsColumn({this.context});
+
+  /// Only so the reset row can pop the sheet it is standing in. Null when the
+  /// column is built inline, which is the narrow layout.
+  final BuildContext? context;
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final sheet = context ?? buildContext;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _ControlSchemePicker(),
+        const SizedBox(height: 4),
+        ListTile(
+          leading: const Icon(
+            Icons.restart_alt_rounded,
+            color: Palette.bolted,
+          ),
+          title: const Text(
+            'Reset progress',
+            style: TextStyle(
+              color: Palette.bolted,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: const Text(
+            'Clears every star and relocks every level',
+            style: TextStyle(color: MenuPalette.inkSoft, fontSize: 12),
+          ),
+          onTap: () async {
+            await progressStore.resetProgress();
+            if (sheet.mounted) Navigator.of(sheet).pop();
+          },
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+/// The right half: everything you can hear or feel.
+class _SettingsAudioColumn extends StatelessWidget {
+  const _SettingsAudioColumn();
+
+  /// Listens to the store itself.
+  ///
+  /// This widget is built as a const, so an ancestor rebuilding does not
+  /// rebuild it — Flutter sees the identical instance and skips the subtree.
+  /// Without this the sliders render whatever the volume was when the sheet
+  /// opened and then never move again, which is exactly the bug the control
+  /// scheme picker below already had to solve.
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: progressStore,
+        builder: (context, _) => _rows(),
+      );
+
+  Widget _rows() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SettingsHeading('AUDIO'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: VolumeRow(
+            label: 'SOUND',
+            onIcon: Icons.volume_up_rounded,
+            offIcon: Icons.volume_off_rounded,
+            on: progressStore.soundEnabled,
+            volume: progressStore.soundVolume,
+            onToggle: () =>
+                progressStore.setSound(!progressStore.soundEnabled),
+            onChanged: progressStore.setSoundVolume,
+          ),
+        ),
+        const _SettingsNote(
+          'Whoosh on flip, click on jump, thud on landing and death',
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: VolumeRow(
+            label: 'MUSIC',
+            onIcon: Icons.music_note_rounded,
+            offIcon: Icons.music_off_rounded,
+            on: progressStore.musicEnabled,
+            volume: progressStore.musicVolume,
+            onToggle: () =>
+                progressStore.setMusic(!progressStore.musicEnabled),
+            onChanged: progressStore.setMusicVolume,
+          ),
+        ),
+        const _SettingsNote('A quiet loop under the run'),
+        SwitchListTile(
+          value: progressStore.hapticsEnabled,
+          onChanged: progressStore.setHaptics,
+          activeThumbColor: MenuPalette.play,
+          title: const Text(
+            'Haptics',
+            style: TextStyle(
+              color: MenuPalette.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: const Text(
+            'Vibration on flip and death',
+            style: TextStyle(color: MenuPalette.inkSoft, fontSize: 12),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+/// A square icon button with its name under it, for the two things on the
+/// home screen that are not the game — your account and the settings.
+///
+/// Labelled, because two unlabelled glyphs in a corner is a guess. They are
+/// the same moulded material as the slabs, only small.
+class _IconTile extends StatelessWidget {
+  const _IconTile({
+    required this.label,
+    required this.onPressed,
+    required this.child,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // The label is inside the tap target, not under it. Left as a sibling it
+    // looked like part of the button and was not, which is the kind of miss
+    // nobody reports — they just think the button is broken.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          MenuAudio.instance.tap();
+          onPressed();
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFF6FAFC), Color(0xFFCBDCE6)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: const [
+                  BoxShadow(color: Color(0xFFA8BFCC), offset: Offset(0, 4)),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: child,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: const TextStyle(
+                color: MenuPalette.ink,
+                fontSize: 9,
+                letterSpacing: 1,
+                fontWeight: FontWeight.w900,
+                shadows: [
+                  Shadow(color: Colors.white, offset: Offset(0, 1.5)),
+                  Shadow(color: Colors.white, offset: Offset(1.2, 0)),
+                  Shadow(color: Colors.white, offset: Offset(-1.2, 0)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The character's head, as the profile icon. The player is the character, so
+/// the account button is its face rather than a generic silhouette.
+class _MascotFace extends StatelessWidget {
+  const _MascotFace();
+
+  @override
+  Widget build(BuildContext context) =>
+      const SizedBox(width: 26, height: 26, child: CustomPaint(painter: _FacePainter()));
+}
+
+class _FacePainter extends CustomPainter {
+  const _FacePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    canvas.translate(s / 2, s / 2);
+
+    final dark = Paint()..color = const Color(0xFF2C6FD1);
+    for (final side in [-1.0, 1.0]) {
+      canvas.save();
+      canvas.translate(side * s * 0.25, -s * 0.34);
+      canvas.rotate(side * 0.5);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: s * 0.20,
+          height: s * 0.36,
+        ),
+        dark,
+      );
+      canvas.restore();
+    }
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(0, s * 0.06), width: s * 0.76, height: s * 0.72),
+        Radius.circular(s * 0.26),
+      ),
+      Paint()..color = const Color(0xFF5AA6FA),
+    );
+
+    for (final side in [-1.0, 1.0]) {
+      final centre = Offset(side * s * 0.16, -s * 0.02);
+      canvas.drawCircle(centre, s * 0.11, Paint()..color = const Color(0xFFFFFFFF));
+      canvas.drawCircle(centre + Offset(s * 0.02, 0), s * 0.055,
+          Paint()..color = const Color(0xFF12161F));
+    }
+
+    canvas.drawArc(
+      Rect.fromCenter(center: Offset(0, s * 0.20), width: s * 0.26, height: s * 0.20),
+      0.15,
+      math.pi - 0.3,
+      false,
+      Paint()
+        ..color = const Color(0xFF12161F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.05
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_FacePainter oldDelegate) => false;
+}
+
+/// The three totals, in one bar with rules between them.
+///
+/// One bar rather than three pills: they are the same kind of fact read at the
+/// same moment, and three separate containers made them look like three
+/// separate things.
+class _StatBar extends StatelessWidget {
+  const _StatBar({
+    required this.solved,
+    required this.stars,
+    required this.streak,
+  });
+
+  final int solved;
+  final int stars;
+
+  /// Days played in a row. Zero is not drawn: a brand new player being shown a
+  /// nothing they have already failed at is a poor first thing to read.
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: MenuPalette.ink.withValues(alpha: 0.16),
+            offset: const Offset(0, 4),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StatCell(
+            icon: Icons.emoji_events_rounded,
+            tint: MenuPalette.goldDark,
+            value: '$solved',
+          ),
+          const _StatRule(),
+          _StatCell(
+            icon: Icons.star_rounded,
+            tint: MenuPalette.gold,
+            value: '$stars',
+          ),
+          if (streak > 0) ...[
+            const _StatRule(),
+            _StatCell(
+              icon: Icons.local_fire_department_rounded,
+              tint: MenuPalette.friend,
+              // Singular on day one, because "1 DAYS" is the kind of thing
+              // that makes a game look unfinished.
+              value: streak == 1 ? '1 DAY' : '$streak DAYS',
+              valueTint: MenuPalette.friend,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  const _StatCell({
+    required this.icon,
+    required this.tint,
+    required this.value,
+    this.valueTint,
+  });
+
+  final IconData icon;
+  final Color tint;
+  final String value;
+  final Color? valueTint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 21, color: tint),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueTint ?? MenuPalette.ink,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRule extends StatelessWidget {
+  const _StatRule();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 2,
+        height: 22,
+        color: MenuPalette.inkSoft.withValues(alpha: 0.20),
+      );
 }
 
 /// Fades and lifts its child into place once, on arrival.
@@ -364,50 +737,30 @@ class _TitleSign extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 20 : 26,
-        vertical: compact ? 8 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: MenuPalette.gold, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: MenuPalette.goldDark.withValues(alpha: 0.55),
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+    // No card behind it any more. The keyline is what lifts the wordmark off
+    // the sky, and a white panel under a white outline was two solutions to
+    // the same problem stacked on each other.
+    return Padding(
+      padding: EdgeInsets.only(bottom: compact ? 2 : 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // One Text, not one per letter. Splitting it would look livelier and
-          // would break every test that looks for the title by name.
-          ShaderMask(
-            blendMode: BlendMode.srcIn,
-            shaderCallback: (rect) => const LinearGradient(
-              colors: MenuPalette.rainbow,
-            ).createShader(rect),
-            child: Text(
-              'PITCHPOLE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: compact ? 28 : 38,
-                letterSpacing: compact ? 4 : 6,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          SizedBox(height: compact ? 2 : 4),
+          _BubbleTitle(compact: compact),
+          SizedBox(height: compact ? 3 : 5),
           Text(
             'Run, flip and jump to the door!',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: MenuPalette.inkSoft,
+              color: MenuPalette.ink,
               fontSize: compact ? 12 : 14,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
+              shadows: const [
+                Shadow(color: Colors.white, offset: Offset(0, 2)),
+                Shadow(color: Colors.white, offset: Offset(0, -1)),
+                Shadow(color: Colors.white, offset: Offset(1.5, 0)),
+                Shadow(color: Colors.white, offset: Offset(-1.5, 0)),
+              ],
             ),
           ),
         ],
@@ -416,113 +769,24 @@ class _TitleSign extends StatelessWidget {
   }
 }
 
-/// How far you have got, as a badge rather than a line of grey text.
-class _ScoreChip extends StatelessWidget {
-  const _ScoreChip({
-    required this.solved,
-    required this.levels,
-    required this.stars,
-    required this.streak,
-  });
+/// The wordmark, in the shared bubble treatment.
+class _BubbleTitle extends StatelessWidget {
+  const _BubbleTitle({required this.compact});
 
-  final int solved;
-  final int levels;
-  final int stars;
-
-  /// Days played in a row. Zero is not drawn: a brand new player being shown a
-  /// nothing they have already failed at is a poor first thing to read, and a
-  /// broken streak does not need a badge to announce itself.
-  final int streak;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.emoji_events_rounded,
-              size: 16, color: MenuPalette.goldDark),
-          const SizedBox(width: 6),
-          Text(
-            '$solved of $levels solved',
-            style: const TextStyle(
-              color: MenuPalette.ink,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 10),
-          const Icon(Icons.star_rounded, size: 16, color: MenuPalette.gold),
-          const SizedBox(width: 4),
-          Text(
-            '$stars of ${levels * 3}',
-            style: const TextStyle(
-              color: MenuPalette.ink,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (streak > 0) ...[
-            const SizedBox(width: 10),
-            const Icon(Icons.local_fire_department_rounded,
-                size: 16, color: MenuPalette.friend),
-            const SizedBox(width: 4),
-            Text(
-              // Singular on day one, because "1 days" is the kind of thing
-              // that makes a game look unfinished.
-              streak == 1 ? '1 day' : '$streak days',
-              style: const TextStyle(
-                color: MenuPalette.ink,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// A round white button, for the one control that is not a slab.
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({
-    required this.icon,
-    required this.onPressed,
-    this.tooltip,
-  });
-
-  final IconData icon;
-  final VoidCallback onPressed;
-  final String? tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip ?? '',
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.9),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () {
-            MenuAudio.instance.tap();
-            onPressed();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(9),
-            child: Icon(icon, color: MenuPalette.ink, size: 22),
-          ),
+  Widget build(BuildContext context) => BubbleText(
+        text: 'PITCHPOLE',
+        keyline: compact ? 7 : 9,
+        gradient: MenuPalette.rainbow,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: compact ? 30 : 40,
+          letterSpacing: compact ? 3 : 5,
+          fontWeight: FontWeight.w900,
         ),
-      ),
-    );
-  }
+      );
 }
 
 class _SettingsHeading extends StatelessWidget {
@@ -572,6 +836,158 @@ class _SettingsNote extends StatelessWidget {
 
 /// The two touch schemes, as an either or. Picking one turns the other off,
 /// which is the point: they must never both be live.
+/// Which of the five places every level is set in, or none of them.
+///
+/// The scenery normally changes every ten levels, which is how getting
+/// somewhere shows on screen. Some players would rather it did not move, and
+/// some just prefer one of them, so the rotation is the default rather than
+/// the rule. Nothing here changes a level: a theme is temperature and
+/// lightness, and `scene_theme_test.dart` holds every one of them to leaving
+/// the cast findable.
+class _SceneryPicker extends StatelessWidget {
+  const _SceneryPicker();
+
+  @override
+  Widget build(BuildContext context) {
+    // Listens to the store itself, for the same reason the control scheme
+    // picker does: built as a const, an ancestor rebuilding skips the subtree
+    // and the highlight sticks where it was when the sheet opened.
+    return AnimatedBuilder(
+      animation: progressStore,
+      builder: (context, _) => _rows(),
+    );
+  }
+
+  Widget _rows() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SettingsHeading('SCENERY'),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 84,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              const _SceneryChip(theme: null, label: 'BY LEVEL'),
+              for (final theme in SceneTheme.all) ...[
+                const SizedBox(width: 10),
+                _SceneryChip(theme: theme, label: theme.name.toUpperCase()),
+              ],
+            ],
+          ),
+        ),
+        _SettingsNote(
+          progressStore.sceneryChoice == null
+              ? 'A new place every ten levels'
+              : 'Every level set in the same place',
+        ),
+      ],
+    );
+  }
+}
+
+/// One swatch: the sky, the band and the ground it would paint, stacked.
+///
+/// Painted from the theme's own colours rather than drawn as an icon, so the
+/// button is a sample of the thing it selects and cannot drift away from it.
+class _SceneryChip extends StatelessWidget {
+  const _SceneryChip({required this.theme, required this.label});
+
+  /// Null is the rotation, which has no colours of its own to show.
+  final SceneTheme? theme;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = progressStore.sceneryChoice == theme?.name;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          MenuAudio.instance.tap();
+          progressStore.setScenery(theme?.name);
+        },
+        child: SizedBox(
+          width: 72,
+          child: Column(
+            children: [
+              Container(
+                height: 52,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: selected ? MenuPalette.play : Colors.white,
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: selected
+                          ? const Color(0xFF3F8A1D)
+                          : MenuPalette.ink.withValues(alpha: 0.18),
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: theme == null
+                    ? Container(
+                        color: MenuPalette.card,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.auto_awesome_rounded,
+                          color: MenuPalette.levels,
+                          size: 22,
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: ColoredBox(
+                              color: theme!.skyHigh,
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 5,
+                            child: ColoredBox(
+                              color: theme!.bandLow,
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: ColoredBox(
+                              color: theme!.earthDark,
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? MenuPalette.play : MenuPalette.inkSoft,
+                  fontSize: 9,
+                  letterSpacing: 0.9,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ControlSchemePicker extends StatelessWidget {
   const _ControlSchemePicker();
 
