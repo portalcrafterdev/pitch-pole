@@ -1,6 +1,15 @@
 # Build and design docs
 CLAUDE.md
 
+# The mockups the UI was designed against: artboards, sketches and the
+# scripts that drew them. Nothing in the app reads any of it — the pack
+# ships only assets/levels and assets/audio, and no script in there writes
+# into lib. The screens they describe exist in Dart now, and the reasoning
+# behind them is in the comments there, which is the copy that stays true
+# when a button changes. Kept on disk to look at, out of history so a
+# `git add -A` cannot sweep in three megabytes of stale HTML.
+design/
+
 # Miscellaneous
 *.class
 *.log
