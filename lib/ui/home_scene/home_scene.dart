@@ -29,17 +29,13 @@ class HomeScene extends FlameGame {
 
   @override
   Future<void> onLoad() async {
-    // Priorities are the paint order, back to front. They are spaced so a new
-    // component can be slotted between two without renumbering the rest.
+    // Built from [kSceneLayers] rather than listed again here. The order used
+    // to be written out twice — once for this tree and once for the still
+    // painter — and a layer added to one and not the other simply did not
+    // appear while the menu was moving.
     await addAll([
-      _ArtComponent(paintSky, priority: 0),
-      _ArtComponent(paintSun, priority: 10),
-      _ArtComponent(paintBirds, priority: 20),
-      _ArtComponent(paintClouds, priority: 30),
-      _ArtComponent(paintHills, priority: 40),
-      _ArtComponent(paintCoins, priority: 50),
-      _ArtComponent(paintMascot, priority: 60),
-      _ArtComponent(paintSparks, priority: 70),
+      for (var i = 0; i < kSceneLayers.length; i++)
+        _ArtComponent(kSceneLayers[i], priority: i * 10),
     ]);
   }
 }

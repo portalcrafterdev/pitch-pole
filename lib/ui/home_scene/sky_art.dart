@@ -16,19 +16,41 @@ import '../menu_palette.dart';
 /// Colours come from [MenuPalette] only. None of this is ever on screen
 /// during a run, so none of it can cost the player a read.
 
-/// The order everything is drawn in, from the sky down to the sparkles on top.
+/// One layer of the scene, given the canvas, its size and the time.
+typedef SceneLayer = void Function(Canvas canvas, Size size, double t);
+
+/// The order everything is drawn in, from the sky up to the sparkles on top.
+///
+/// A list rather than a sequence of calls, because there are two things that
+/// draw this scene — the still `CustomPainter` and the Flame component tree —
+/// and they used to hold the order separately. A layer added to one and not
+/// the other simply did not appear when the menu was moving, which is exactly
+/// what happened to the foliage. Both now walk this.
+const List<SceneLayer> kSceneLayers = [
+  paintSky,
+  paintSun,
+  paintBirds,
+  paintClouds,
+  paintHills,
+  paintCoins,
+  paintMascot,
+  paintSparks,
+];
+
 void paintScene(Canvas canvas, Size size, double t) {
-  paintSky(canvas, size, t);
-  paintSun(canvas, size, t);
-  paintBirds(canvas, size, t);
-  paintClouds(canvas, size, t);
-  paintHills(canvas, size, t);
-  paintCoins(canvas, size, t);
-  paintMascot(canvas, size, t);
-  paintSparks(canvas, size, t);
+  for (final layer in kSceneLayers) {
+    layer(canvas, size, t);
+  }
 }
 
 double _wrap01(double v) => v - v.floorToDouble();
+
+/// A point on a quadratic bezier, so something can be planted on a curve that
+/// was only ever drawn.
+double _quad(double a, double b, double c, double u) {
+  final v = 1 - u;
+  return v * v * a + 2 * v * u * b + u * u * c;
+}
 
 /// The gradient behind everything. Ends warm rather than blue, so the horizon
 /// reads as afternoon light instead of as more sky.
@@ -184,7 +206,28 @@ void paintHills(Canvas canvas, Size size, double t) {
   final w = size.width;
   final h = size.height;
 
-  void hill(double top, Color colour, double lift) {
+  /// One band of hill, plus the bushes sitting on its ridge.
+  ///
+  /// The bushes are the difference between a coloured shape and a landscape.
+  /// Three overlapping circles at a couple of points along the crest is enough:
+  /// the eye reads them as planting and stops reading the band as a gradient.
+  void hill(double top, Color colour, Color bush, double lift,
+      List<double> clumps) {
+    double crest(double x) {
+      // The same curve the path below is drawn from, sampled so a bush can be
+      // planted on the ridge rather than floating above or sunk into it.
+      final p = x / w;
+      if (p < 0.38) {
+        final u = p / 0.38;
+        return _quad(top, top - lift, top + lift * 0.35, u);
+      } else if (p < 0.74) {
+        final u = (p - 0.38) / 0.36;
+        return _quad(top + lift * 0.35, top + lift * 1.1, top - lift * 0.5, u);
+      }
+      final u = ((p - 0.74) / 0.26).clamp(0.0, 1.0);
+      return _quad(top - lift * 0.5, top - lift * 1.5, top - lift * 0.2, u);
+    }
+
     canvas.drawPath(
       Path()
         ..moveTo(0, h)
@@ -196,10 +239,22 @@ void paintHills(Canvas canvas, Size size, double t) {
         ..close(),
       Paint()..color = colour,
     );
+
+    final leaf = Paint()..color = bush;
+    final r = lift * 1.35;
+    for (final at in clumps) {
+      final x = w * at;
+      final y = crest(x) + r * 0.55;
+      canvas.drawCircle(Offset(x - r * 1.25, y), r * 0.82, leaf);
+      canvas.drawCircle(Offset(x, y - r * 0.34), r, leaf);
+      canvas.drawCircle(Offset(x + r * 1.3, y), r * 0.78, leaf);
+    }
   }
 
-  hill(h * 0.80, MenuPalette.hillFar, h * 0.05);
-  hill(h * 0.88, MenuPalette.hillNear, h * 0.04);
+  hill(h * 0.80, MenuPalette.hillFar, MenuPalette.bushFar, h * 0.05,
+      const [0.10, 0.46, 0.86]);
+  hill(h * 0.88, MenuPalette.hillNear, MenuPalette.bushNear, h * 0.04,
+      const [0.26, 0.64, 0.95]);
 
   final capY = h * 0.945;
   canvas.drawRect(
@@ -280,10 +335,10 @@ void _paintFlowers(Canvas canvas, double w, double capY, double t) {
 /// The right third of a landscape screen is dead space once the menu column is
 /// centred, and that empty third is a good part of why the page read as severe.
 void paintCoins(Canvas canvas, Size size, double t) {
-  final x = size.width * 0.86;
+  final x = size.width * 0.90;
   // Hovering just over the grass rather than out in open sky, so they read as
   // coins waiting to be run through instead of as three dots.
-  final ground = size.height * 0.925;
+  final ground = size.height * 0.965;
   final baseY = ground - 34;
   const r = 12.0;
 
@@ -367,8 +422,12 @@ void _spark(Canvas canvas, Offset o, double r, double alpha) {
 /// bounce is a hop rather than a stride.
 void paintMascot(Canvas canvas, Size size, double t) {
   final scale = math.min(size.height / 320, 1.3);
-  final feet = Offset(size.width * 0.13, size.height * 0.945);
-  final s = 52.0 * scale;
+  // Left of the menu column, with the coins on the right, so the page has
+  // something on both sides of the buttons rather than everything piled into
+  // one corner. The wave goes up and to the right from here, which puts the
+  // gesture towards the buttons instead of off the edge of the screen.
+  final feet = Offset(size.width * 0.17, size.height * 0.90);
+  final s = 54.0 * scale;
 
   // One hop a second and a bit, with the squash on the landing rather than
   // spread evenly through it. A bounce with no squash reads as a float.
@@ -406,6 +465,35 @@ void paintMascot(Canvas canvas, Size size, double t) {
       Offset(-s * 0.20, -s * 0.34), Offset(-s * 0.24 + swing, -s * 0.02), leg);
   canvas.drawLine(
       Offset(s * 0.20, -s * 0.34), Offset(s * 0.24 - swing, -s * 0.02), leg);
+
+  // Arms. The character the player controls has none — in a run there is
+  // nothing for them to do and they would only blur at speed — so these exist
+  // on the menu alone and the two drawings are deliberately not the same.
+  //
+  // Both go up and out into the sky, mirrored. Each starts inside the body and
+  // is drawn before it, so the shoulder is covered and only the part past the
+  // silhouette shows: that is what stops an arm reading as a stripe painted
+  // across the chest, and holding the hands well clear of the edge is what
+  // stops the visible stub reading as a bar stuck to it. Both earlier attempts
+  // at a second arm failed one of those two ways.
+  final arm = Paint()
+    ..color = const Color(0xFF2C6FD1)
+    ..strokeWidth = s * 0.16
+    ..strokeCap = StrokeCap.round
+    ..style = PaintingStyle.stroke;
+
+  // Mirrored rotation, so the pair opens and closes together rather than
+  // sweeping across the body in the same direction.
+  final wave = math.sin(t * 3.4) * 0.22;
+  for (final side in [-1.0, 1.0]) {
+    canvas.save();
+    canvas.translate(side * s * 0.44, -s * 1.02);
+    canvas.rotate(side * wave);
+    final hand = Offset(side * s * 0.30, -s * 0.42);
+    canvas.drawLine(Offset.zero, hand, arm);
+    canvas.drawCircle(hand, s * 0.11, bodyDark);
+    canvas.restore();
+  }
 
   // Ears first, so the head overlaps their roots. Short and rounded rather
   // than long and thin, which was reading as antennae on a bug.
@@ -447,22 +535,43 @@ void paintMascot(Canvas canvas, Size size, double t) {
   canvas.drawCircle(Offset(-s * 0.34, -s * 0.74), s * 0.10, cheek);
   canvas.drawCircle(Offset(s * 0.34, -s * 0.74), s * 0.10, cheek);
 
-  // A blink every three and a bit seconds, held for a tenth of one.
+  // A blink every three and a bit seconds, held for a tenth of one, and a
+  // wink on the waving side that comes off the same clock as the wave — so
+  // the two read as one gesture rather than as two tics.
   final blink = _wrap01(t / 3.4) > 0.97;
-  final eyeH = blink ? s * 0.03 : s * 0.17;
+  final wink = _wrap01(t / 3.4) > 0.62 && _wrap01(t / 3.4) < 0.74;
   for (final side in [-1.0, 1.0]) {
     final centre = Offset(side * s * 0.19, -s * 0.94);
+    final shut = blink || (wink && side > 0);
+    if (shut) {
+      // A closed eye is a curve, not a smaller circle. Drawn as an arc so it
+      // reads as a lid coming down rather than as an eye that shrank.
+      canvas.drawArc(
+        Rect.fromCenter(
+          center: centre + Offset(0, s * 0.02),
+          width: s * 0.26,
+          height: s * 0.18,
+        ),
+        math.pi,
+        math.pi,
+        false,
+        Paint()
+          ..color = const Color(0xFF12161F)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = s * 0.05
+          ..strokeCap = StrokeCap.round,
+      );
+      continue;
+    }
     canvas.drawOval(
-      Rect.fromCenter(center: centre, width: s * 0.24, height: eyeH * 1.5),
+      Rect.fromCenter(center: centre, width: s * 0.24, height: s * 0.255),
       Paint()..color = const Color(0xFFFFFFFF),
     );
-    if (!blink) {
-      canvas.drawCircle(
-        centre + Offset(s * 0.03, math.sin(t * 1.1) * s * 0.02),
-        s * 0.07,
-        Paint()..color = const Color(0xFF12161F),
-      );
-    }
+    canvas.drawCircle(
+      centre + Offset(s * 0.03, math.sin(t * 1.1) * s * 0.02),
+      s * 0.07,
+      Paint()..color = const Color(0xFF12161F),
+    );
   }
 
   canvas.drawArc(
