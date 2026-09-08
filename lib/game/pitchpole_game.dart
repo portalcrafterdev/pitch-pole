@@ -6,6 +6,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../data/progress_store.dart';
 import '../ui/palette.dart';
 import 'components/bat_enemy.dart';
 import 'components/blade_obstacle.dart';
@@ -131,9 +132,10 @@ class PitchpoleGame extends FlameGame {
     unawaited(_sound.preload());
     unawaited(_sound.startMusic());
 
-    // The place this level is set in, derived from its number so it is fixed
-    // for that level forever and costs the level pack nothing.
-    final theme = SceneTheme.forLevel(level.id);
+    // The place this level is set in: the player's pick if they have made one
+    // in settings, and otherwise derived from the level's number, so it is
+    // fixed for that level forever and costs the level pack nothing.
+    final theme = SceneTheme.resolve(level.id, progressStore.sceneryChoice);
     _backdrop = ParallaxBackdrop(theme: theme);
     _strip = SurfaceStrip(theme: theme);
     camera.backdrop.addAll([_backdrop, _strip]);

@@ -265,4 +265,29 @@ class SceneTheme {
     final block = ((levelId - 1) ~/ levelsPerTheme).abs();
     return all[block % all.length];
   }
+
+  /// The theme called [name], or null if nothing is.
+  ///
+  /// Null rather than a fallback, because the one caller is a saved setting:
+  /// a name that no longer exists means the player picked a place that has
+  /// since been renamed, and the honest answer to that is to go back to
+  /// following the level rather than to silently hand them the forest.
+  static SceneTheme? byName(String name) {
+    for (final theme in all) {
+      if (theme.name == name) return theme;
+    }
+    return null;
+  }
+
+  /// What to actually paint: the player's pick if they have made one, and the
+  /// level's own place if they have not.
+  ///
+  /// [choice] being null is the default and is not the same as picking the
+  /// forest. Left alone the world still changes every ten levels, which is
+  /// what makes getting somewhere show on screen; picking one turns that off
+  /// deliberately, for a player who wants the same place every time.
+  static SceneTheme resolve(int levelId, String? choice) {
+    if (choice == null) return forLevel(levelId);
+    return byName(choice) ?? forLevel(levelId);
+  }
 }

@@ -108,6 +108,7 @@ class ProgressStore extends ChangeNotifier {
   static const String _musicVolumeKey = 'settings.musicVolume';
   static const String _controlsKey = 'settings.controls';
   static const String _padPrefix = 'settings.pad.';
+  static const String _sceneryKey = 'settings.scenery';
 
   SharedPreferences? _prefs;
   final Map<int, int> _stars = {};
@@ -142,6 +143,10 @@ class ProgressStore extends ChangeNotifier {
   double _musicVolume = 1;
   ControlScheme _controls = ControlScheme.halves;
 
+  /// The place the player wants every level set in, or null to let the level
+  /// decide. Null is the default: see [SceneTheme.resolve].
+  String? _scenery;
+
   /// Only the pads the player has actually moved or resized. A pad missing
   /// from these sits at its [ControlPad.home] at its [ControlPad.size], so the
   /// defaults can be changed later without having to migrate anybody's saved
@@ -155,6 +160,9 @@ class ProgressStore extends ChangeNotifier {
   double get soundVolume => _soundVolume;
   double get musicVolume => _musicVolume;
   ControlScheme get controlScheme => _controls;
+
+  /// Null means the scenery follows the level, changing every ten of them.
+  String? get sceneryChoice => _scenery;
 
   /// Where a pad sits, as a fraction of the screen.
   Offset padSpot(ControlPad pad) => _padSpots[pad] ?? pad.home;
@@ -207,6 +215,7 @@ class ProgressStore extends ChangeNotifier {
     _soundVolume = (prefs.getDouble(_soundVolumeKey) ?? 1).clamp(0.0, 1.0);
     _musicVolume = (prefs.getDouble(_musicVolumeKey) ?? 1).clamp(0.0, 1.0);
     _controls = ControlScheme.fromName(prefs.getString(_controlsKey));
+    _scenery = prefs.getString(_sceneryKey);
 
     _padSpots.clear();
     _padScales.clear();
@@ -411,6 +420,21 @@ class ProgressStore extends ChangeNotifier {
     _musicVolume = level;
     notifyListeners();
     await _prefs?.setDouble(_musicVolumeKey, level);
+  }
+
+  /// Pins the scenery to one place, or hands it back to the level with null.
+  Future<void> setScenery(String? name) async {
+    if (_scenery == name) return;
+    _scenery = name;
+    notifyListeners();
+    // Removed rather than stored as a word meaning "no choice": an absent key
+    // is what a fresh install has, so following the level is one state rather
+    // than two that have to behave the same.
+    if (name == null) {
+      await _prefs?.remove(_sceneryKey);
+    } else {
+      await _prefs?.setString(_sceneryKey, name);
+    }
   }
 
   Future<void> setControlScheme(ControlScheme scheme) async {
