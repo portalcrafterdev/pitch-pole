@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/game/logic/level_generator.dart';
+import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/scene_theme.dart';
 import 'package:pitchpole/ui/palette.dart';
+import 'package:pitchpole/ui/widgets/letterbox.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The cast, and the two things that help. Every one of these has to stay
 /// findable against every background the game can put behind it.
@@ -93,5 +96,82 @@ void main() {
         }
       });
     }
+  });
+
+  group('the letterbox continues the level it is around', () {
+    // The play field is 560 by 220, wider than any phone held sideways, so
+    // there is always a band above and below it. It is filled with the two
+    // colours the canvas ends on — and for every level past ten those are not
+    // the forest's, which is what CLAUDE.md's seam warning is about.
+    testWidgets('it takes its colours from the theme it is given',
+        (tester) async {
+      for (final theme in SceneTheme.all) {
+        await tester.pumpWidget(
+          MaterialApp(home: Letterbox(theme: theme)),
+        );
+        await tester.pump();
+        expect(tester.widget<Letterbox>(find.byType(Letterbox)).theme.skyHigh,
+            theme.skyHigh);
+      }
+    });
+
+    testWidgets('a winter level is not framed in the forest', (tester) async {
+      // The regression itself. Level 11 opens the second block of ten, which
+      // is winter: painting the forest's sky against a winter sky is a line
+      // straight across the top of the screen.
+      final winter = SceneTheme.forLevel(11);
+      expect(winter.name, isNot(SceneTheme.forest.name));
+      expect(winter.skyHigh, isNot(SceneTheme.forest.skyHigh));
+      expect(winter.earthDark, isNot(SceneTheme.forest.earthDark));
+    });
+  });
+
+  group('the player can pin the scenery', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+    });
+
+    test('left alone it still follows the level', () {
+      expect(progressStore.sceneryChoice, isNull);
+      for (final id in [1, 11, 21, 31, 41, 51]) {
+        expect(
+          SceneTheme.resolve(id, progressStore.sceneryChoice).name,
+          SceneTheme.forLevel(id).name,
+        );
+      }
+    });
+
+    test('a pick holds for every level', () async {
+      await progressStore.setScenery(SceneTheme.night.name);
+      for (final id in [1, 11, 21, 31, 41, 5000]) {
+        expect(SceneTheme.resolve(id, progressStore.sceneryChoice).name,
+            'night');
+      }
+    });
+
+    test('it can be handed back to the level', () async {
+      await progressStore.setScenery(SceneTheme.rain.name);
+      await progressStore.setScenery(null);
+      expect(progressStore.sceneryChoice, isNull);
+      expect(SceneTheme.resolve(11, progressStore.sceneryChoice).name,
+          SceneTheme.forLevel(11).name);
+    });
+
+    test('a name that no longer exists falls back to the level', () {
+      // A saved setting outlives the build that wrote it. Renaming a theme
+      // must not strand a player on a blank screen or silently move them to
+      // whichever one happens to be first in the list.
+      expect(SceneTheme.byName('swamp'), isNull);
+      expect(SceneTheme.resolve(11, 'swamp').name,
+          SceneTheme.forLevel(11).name);
+    });
+
+    test('the choice does not travel to another phone', () async {
+      // Section 15: how loud a phone is and how it is driven are facts about
+      // that phone, and so is which place its owner likes looking at.
+      await progressStore.setScenery(SceneTheme.winter.name);
+      expect(progressStore.toSnapshot().toString(), isNot(contains('winter')));
+    });
   });
 }

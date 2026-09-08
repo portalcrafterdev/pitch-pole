@@ -165,7 +165,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: LevelFailed(
           onRetry: () {},
-          onLevels: () {},
+          onHome: () {},
           onExtraLife: () => taken++,
           extraLivesLeft: extraLivesLeft,
         ),
@@ -175,6 +175,16 @@ void main() {
     }
 
     tearDown(() => adsController.debugOfferExtraLife = false);
+
+    testWidgets('the way out is home, not the level grid', (tester) async {
+      // Out of lives is where a run ends. The grid is somewhere you go to
+      // pick a level, which is not what a player who has just stopped playing
+      // one is looking for.
+      await pumpPanel(tester);
+
+      expect(find.text('HOME'), findsOneWidget);
+      expect(find.text('LEVELS'), findsNothing);
+    });
 
     testWidgets('offers nothing it cannot deliver', (tester) async {
       adsController.debugOfferExtraLife = false;

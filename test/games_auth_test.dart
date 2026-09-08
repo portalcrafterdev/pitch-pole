@@ -5,7 +5,6 @@ import 'package:pitchpole/data/games_auth.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/main.dart';
-import 'package:pitchpole/ui/widgets/sign_in_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Play Games and Game Center are platform services with no test double, so
@@ -165,33 +164,55 @@ void main() {
       });
     }
 
-    homeTest('names the platform service when signed out',
+    // The home screen no longer carries a labelled sign in slab — the account
+    // is a PROFILE tile in the corner, and the service is named where signing
+    // in actually happens rather than on the front page. What still has to
+    // hold is that there is one way in and it works on both platforms.
+    homeTest('offers a way into the account when signed out',
         TargetPlatform.android, (tester) async {
-      expect(find.byType(SignInButton), findsOneWidget);
-      expect(find.text('SIGN IN WITH PLAY GAMES'), findsOneWidget);
+      expect(find.text('SIGN IN'), findsOneWidget);
+      expect(gamesAuth.isSignedIn, isFalse);
     });
 
-    homeTest('says Game Center on iOS', TargetPlatform.iOS, (tester) async {
-      expect(find.text('SIGN IN WITH GAME CENTER'), findsOneWidget);
+    homeTest('the same tile on iOS, where the service is Game Center',
+        TargetPlatform.iOS, (tester) async {
+      expect(find.text('SIGN IN'), findsOneWidget);
+      expect(gamesAuth.service, GamesService.gameCenter);
     });
 
-    homeTest('shows the player instead once signed in', TargetPlatform.android,
+    homeTest('the tile opens the account once signed in', TargetPlatform.android,
         (tester) async {
       gamesAuth.debugSetSignedIn('Bramble');
       await tester.pumpAndSettle();
 
-      expect(find.text('BRAMBLE'), findsOneWidget);
-      expect(find.text('SIGN IN WITH PLAY GAMES'), findsNothing);
+      // The tile is named for what pressing it does, so it stops saying
+      // SIGN IN once there is nothing left to sign into.
+      expect(find.text('SIGN IN'), findsNothing);
+      expect(find.text('PROFILE'), findsOneWidget);
+      await tester.tap(find.text('PROFILE'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bramble'), findsOneWidget);
     });
 
     homeTest('a failed tap says so out loud and stays tappable',
         TargetPlatform.android, (tester) async {
-      await tester.tap(find.text('SIGN IN WITH PLAY GAMES'));
+      await tester.tap(find.text('SIGN IN'));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull,
           reason: 'a platform with no Play Games project must not crash the '
               'menu');
+
+      // The platform screen is up and the call it answers never comes back on
+      // its own — that is the whole bug this covers. Returning to the front is
+      // the game's only signal it closed, so the test has to give it one, the
+      // same way the lifecycle observer does on a phone. Waiting instead would
+      // wait the five minute timeout out.
+      // Through runAsync: settling it asks the platform who the player is,
+      // and that read is guarded by a real ten second timer that a fake clock
+      // never fires.
+      await tester.runAsync(gamesAuth.resolvePendingSignIn);
+      await tester.pumpAndSettle();
 
       // The whole point of the dialog: the platform draws its own full screen
       // sheet over the game, and when that closes with nothing signed in, a
@@ -203,7 +224,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(gamesAuth.lastError, isNotNull, reason: 'and it stays on screen');
-      expect(find.text('SIGN IN WITH PLAY GAMES'), findsOneWidget);
+      expect(find.text('SIGN IN'), findsOneWidget,
+          reason: 'and the way back in is still there');
     });
 
     homeTest('play and levels still work signed out', TargetPlatform.android,

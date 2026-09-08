@@ -3,9 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/logic/level_pack.dart';
+import 'package:pitchpole/ui/chapters.dart';
 import 'package:pitchpole/main.dart';
 import 'package:pitchpole/ui/overlays/overlay_panel.dart';
 import 'package:pitchpole/ui/screens/level_select_screen.dart';
+import 'package:pitchpole/ui/widgets/star_row.dart';
+import 'package:pitchpole/ui/widgets/steady_insets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Reads the pack's index for real before a screen that needs it is pumped.
@@ -17,6 +20,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// it from cache and the widgets settle normally.
 Future<void> warmLevels(WidgetTester tester) =>
     tester.runAsync(() => levelRepository.count());
+
+/// The screens under the wrapper `main.dart` puts them under.
+///
+/// [SteadyInsets] is what keeps a page from relayouting when the system bars
+/// show themselves, so a screen pumped bare is not the screen the player has.
+Widget app(Widget home) =>
+    MaterialApp(home: home, builder: SteadyInsets.wrap);
 
 void main() {
   setUp(() async {
@@ -118,7 +128,7 @@ void main() {
         addTearDown(tester.view.reset);
 
         await warmLevels(tester);
-        await tester.pumpWidget(const MaterialApp(home: LevelSelectScreen()));
+        await tester.pumpWidget(app(const LevelSelectScreen()));
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull,
@@ -136,13 +146,12 @@ void main() {
       addTearDown(tester.view.reset);
 
       await warmLevels(tester);
-      await tester.pumpWidget(const MaterialApp(home: LevelSelectScreen()));
+      await tester.pumpWidget(app(const LevelSelectScreen()));
       await tester.pumpAndSettle();
 
-      return tester
-          .widget<GridView>(find.byType(GridView))
-          .controller!
-          .offset;
+      // The outer scroller is a list of chapters; the grids inside a chapter
+      // are fixed blocks that do not scroll on their own.
+      return tester.widget<ListView>(find.byType(ListView)).controller!.offset;
     }
 
     testWidgets('a new player starts at the top', (tester) async {
@@ -160,6 +169,29 @@ void main() {
       expect(find.text('2'), findsWidgets);
     });
 
+    testWidgets('a level part way down a chapter opens on screen',
+        (tester) async {
+      // Eighty is four rows into chapter two: far enough down that the grid
+      // has to scroll to it, near enough the front that it would be easy to
+      // assume the top of the list was good enough.
+      for (var id = 1; id < 80; id++) {
+        await progressStore.record(id, 3, 30.0);
+      }
+
+      final offset = await openLevelSelect(tester);
+      expect(offset, greaterThan(0));
+      expect(find.text('1'), findsNothing,
+          reason: 'the player should not be looking at the start of the pack');
+
+      // Not `findsOneWidget`: a lazy list builds a cache extent either side of
+      // what it shows, so a tile can be in the tree and still be off screen.
+      // Where it actually sits is the only thing that answers the question.
+      final tile = tester.getRect(find.text('80'));
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(tile.top, greaterThan(0));
+      expect(tile.bottom, lessThan(screen.height));
+    });
+
     testWidgets('deep in the pack it scrolls to the current level',
         (tester) async {
       // The whole reason this exists: at 10,000 levels, opening at the top
@@ -174,6 +206,207 @@ void main() {
       // Level 401 is the first unsolved one, and it should be on screen.
       expect(find.text('401'), findsOneWidget,
           reason: 'the grid should open on the level the player is on');
+    });
+  });
+
+  testWidgets('the grid holds still when the system bars show themselves',
+      (tester) async {
+    // The bars are hidden by immersive mode, but a swipe from an edge brings
+    // them back for two or three seconds on their own. In landscape that is a
+    // navigation bar down one edge, and the grid used to shrink for exactly as
+    // long as it was up and then grow back.
+    tester.view.physicalSize = const Size(732, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.view.resetPadding);
+
+    await warmLevels(tester);
+    await tester.pumpWidget(app(const LevelSelectScreen()));
+    await tester.pumpAndSettle();
+
+    Size tileSize() => tester.getSize(
+          find.ancestor(of: find.text('1'), matching: find.byType(Column)).first,
+        );
+    final steady = tileSize();
+
+    tester.view.padding = const FakeViewPadding(right: 48 * 2);
+    await tester.pumpAndSettle();
+    expect(tileSize(), steady, reason: 'the grid shrank under the bar');
+
+    // And back again, which is the half that made it read as a flicker.
+    tester.view.resetPadding();
+    await tester.pumpAndSettle();
+    expect(tileSize(), steady);
+  });
+
+  testWidgets('a real cutout is still respected', (tester) async {
+    // The point is to ignore a bar that is about to go away, not to run the
+    // page under a notch. A padding that is there from the first frame is not
+    // transient, and is honoured.
+    tester.view.physicalSize = const Size(732, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+    tester.view.padding = const FakeViewPadding(left: 40 * 2);
+    addTearDown(tester.view.reset);
+    addTearDown(tester.view.resetPadding);
+
+    await warmLevels(tester);
+    await tester.pumpWidget(app(const LevelSelectScreen()));
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(find.byType(ListView)).dx, greaterThanOrEqualTo(40),
+        reason: 'the grid ran under the cutout');
+  });
+
+  testWidgets('the grid holds still while the jump dialog is open',
+      (tester) async {
+    // Opening "go to level" raises the keyboard, and an IME pulls Android out
+    // of immersive mode, so the navigation bar comes back along the right
+    // edge in landscape. That is a real inset and SafeArea honoured it, so
+    // every tile in the grid was rebuilt narrower — behind a scrim, for a
+    // dialog about to close.
+    tester.view.physicalSize = const Size(732, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+
+    await warmLevels(tester);
+    await tester.pumpWidget(app(const LevelSelectScreen()));
+    await tester.pumpAndSettle();
+
+    final before = tester.getSize(
+      find.ancestor(of: find.text('1'), matching: find.byType(Column)).first,
+    );
+
+    await tester.tap(find.text('Go to level'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
+
+    // What the IME does to the page: a navigation bar down the right edge and
+    // a keyboard along the bottom.
+    tester.view.padding = const FakeViewPadding(right: 48 * 2);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 150 * 2);
+    addTearDown(() {
+      tester.view.resetPadding();
+      tester.view.resetViewInsets();
+    });
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(
+        find.ancestor(of: find.text('1'), matching: find.byType(Column)).first,
+      ),
+      before,
+      reason: 'a tile resized behind the dialog that covers it',
+    );
+  });
+
+  group('the grid says where a chapter begins', () {
+    Future<void> open(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(732, 360) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      await warmLevels(tester);
+      await tester.pumpWidget(app(const LevelSelectScreen()));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('every chapter carries a header of its own', (tester) async {
+      // Fifty levels never divide evenly by the seven or eight columns a
+      // phone fits, so in a flat grid chapter two started in the middle of a
+      // row with nothing on screen saying so.
+      await open(tester);
+      expect(find.text('CHAPTER 1  ·  TAUGHT'), findsOneWidget);
+    });
+
+    testWidgets('the header names the band its first level is in',
+        (tester) async {
+      // Chapter 1 holds the boundary at level 5, so the band cannot be read
+      // off the chapter number: it is the first level in the chapter that
+      // decides it.
+      expect(bandFor(1), 'TAUGHT');
+      expect(bandFor(51), 'THE RAMP');
+      expect(bandFor(301), 'THE LONG CLIMB');
+    });
+
+    testWidgets('a chapter starts on a row of its own', (tester) async {
+      await open(tester);
+
+      // Tile centres, not text: '1' and '51' are different widths, so their
+      // own left edges say nothing about which column they are in.
+      double columnOf(String id) => tester.getCenter(
+            find.ancestor(of: find.text(id), matching: find.byType(Column)).first,
+          ).dx;
+      final firstColumn = columnOf('1');
+
+      await tester.dragUntilVisible(
+        find.text('CHAPTER 2  ·  THE RAMP'),
+        find.byType(ListView),
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+
+      // Level 50 ends chapter 1 and 51 opens chapter 2. In a flat grid they
+      // sat side by side; now a header comes between them and 51 is back at
+      // the start of a row.
+      expect(columnOf('51'), closeTo(firstColumn, 0.5),
+          reason: 'chapter 2 should open at the start of a fresh row');
+      expect(
+        tester.getCenter(find.text('CHAPTER 2  ·  THE RAMP')).dy,
+        lessThan(tester.getCenter(find.text('51')).dy),
+        reason: 'the header should sit above the chapter it names',
+      );
+    });
+  });
+
+  group('a tile says where you stand with its level', () {
+    /// Pumps level select and returns the finder for one tile's subtree, so a
+    /// mark can be looked for inside the tile it belongs to rather than
+    /// anywhere on a page holding a hundred of them.
+    Future<Finder> tileFor(WidgetTester tester, String levelId) async {
+      tester.view.physicalSize = const Size(732, 360) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+
+      await warmLevels(tester);
+      await tester.pumpWidget(app(const LevelSelectScreen()));
+      await tester.pumpAndSettle();
+
+      // `.first` because ancestors come back nearest first, and the page
+      // itself is a Column too: without it the search reaches every other
+      // tile in the grid and a locked tile borrows level 1's stars.
+      return find
+          .ancestor(of: find.text(levelId), matching: find.byType(Column))
+          .first;
+    }
+
+    testWidgets('a locked one carries a padlock where the stars would be',
+        (tester) async {
+      // The padlock sits in the star slot rather than beside the number, so
+      // every tile in a row shares one centre line whatever state it is in.
+      final tile = await tileFor(tester, '2');
+
+      expect(find.descendant(of: tile, matching: find.byType(StarRow)),
+          findsNothing);
+      expect(
+          find.descendant(
+              of: tile, matching: find.byIcon(Icons.lock_rounded)),
+          findsOneWidget);
+    });
+
+    testWidgets('an open one carries its stars and no padlock',
+        (tester) async {
+      // Three stars rather than two, so the header's star total is not also
+      // the string '2' and the tile stays the only thing that finder matches.
+      await progressStore.record(1, 3, 39.0);
+      final tile = await tileFor(tester, '2');
+
+      expect(find.descendant(of: tile, matching: find.byType(StarRow)),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: tile, matching: find.byIcon(Icons.lock_rounded)),
+          findsNothing,
+          reason: 'a padlock on a level you can play is a lie');
     });
   });
 

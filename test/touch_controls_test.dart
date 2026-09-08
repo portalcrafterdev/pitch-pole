@@ -194,6 +194,7 @@ void main() {
                 onResume: () {},
                 onRestart: () {},
                 onLevels: () {},
+              onHome: () {},
               ),
             ),
           ),
@@ -234,6 +235,7 @@ void main() {
             onResume: () {},
             onRestart: () {},
             onLevels: () {},
+            onHome: () {},
           ),
         ),
       ),
@@ -252,7 +254,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await progressStore.load();
 
-      final taken = {'resume': 0, 'restart': 0, 'levels': 0};
+      final taken = {'resume': 0, 'restart': 0, 'levels': 0, 'home': 0};
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -262,12 +264,29 @@ void main() {
               onResume: () => taken['resume'] = taken['resume']! + 1,
               onRestart: () => taken['restart'] = taken['restart']! + 1,
               onLevels: () => taken['levels'] = taken['levels']! + 1,
+              onHome: () => taken['home'] = taken['home']! + 1,
             ),
           ),
         ),
       );
       return taken;
     }
+
+    testWidgets('home is offered, and is its own way out', (tester) async {
+      // Pausing is where a player decides to stop, and until now the only
+      // ways out of a run were another level or the grid of them. Home has to
+      // be distinct from LEVELS: they go to different screens.
+      final taken = await mountPause(tester);
+
+      expect(find.text('HOME'), findsOneWidget);
+      await tester.tap(find.text('HOME'));
+      await tester.pump();
+
+      expect(taken['home'], 1);
+      expect(taken['levels'], 0);
+      expect(taken['resume'], 0);
+      expect(taken['restart'], 0);
+    });
 
     testWidgets('resumes, the same as the button', (tester) async {
       final taken = await mountPause(tester);
@@ -279,6 +298,7 @@ void main() {
       expect(taken['resume'], 1);
       expect(taken['restart'], 0, reason: 'it must not pick an action');
       expect(taken['levels'], 0);
+      expect(taken['home'], 0);
     });
 
     testWidgets('but a tap on the panel itself does nothing', (tester) async {
@@ -320,6 +340,7 @@ void main() {
               onResume: () {},
               onRestart: () {},
               onLevels: () {},
+              onHome: () {},
             ),
           ),
         ),
@@ -357,6 +378,7 @@ void main() {
               onResume: () {},
               onRestart: () {},
               onLevels: () {},
+              onHome: () {},
             ),
           ),
         ),
@@ -392,6 +414,7 @@ void main() {
               onResume: () {},
               onRestart: () {},
               onLevels: () {},
+              onHome: () {},
             ),
           ),
         ),
