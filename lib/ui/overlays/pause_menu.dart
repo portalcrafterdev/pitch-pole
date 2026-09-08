@@ -14,6 +14,7 @@ class PauseMenu extends StatelessWidget {
     required this.onResume,
     required this.onRestart,
     required this.onLevels,
+    required this.onHome,
   });
 
   final int levelId;
@@ -24,12 +25,16 @@ class PauseMenu extends StatelessWidget {
   final VoidCallback onResume;
   final VoidCallback onRestart;
   final VoidCallback onLevels;
+  final VoidCallback onHome;
 
   @override
   Widget build(BuildContext context) {
     return OverlayPanel(
       title: 'Paused',
       accent: MenuPalette.levels,
+      // Over the controls it sits above, rather than ranged against an edge
+      // that nothing else in the column shares.
+      centerContent: true,
       subtitle: 'Level $levelId, ${seconds.toStringAsFixed(0)} seconds of '
           'running.',
       // Tapping the screen around the panel resumes, the same as the button.
@@ -57,6 +62,14 @@ class PauseMenu extends StatelessWidget {
           filled: true,
           accent: MenuPalette.levels,
           onPressed: onLevels,
+        ),
+        // Quieter than the three above it, and last, because it is the one
+        // that leaves the run rather than going back to it.
+        PanelButton(
+          label: 'HOME',
+          icon: Icons.home_rounded,
+          accent: MenuPalette.inkSoft,
+          onPressed: onHome,
         ),
       ],
       // The scheme and the audio are worth changing here rather than only

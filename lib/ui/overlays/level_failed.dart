@@ -11,13 +11,13 @@ class LevelFailed extends StatelessWidget {
   const LevelFailed({
     super.key,
     required this.onRetry,
-    required this.onLevels,
+    required this.onHome,
     required this.onExtraLife,
     required this.extraLivesLeft,
   });
 
   final VoidCallback onRetry;
-  final VoidCallback onLevels;
+  final VoidCallback onHome;
 
   /// Watch an ad and carry on from the last checkpoint with one more life.
   final VoidCallback onExtraLife;
@@ -77,12 +77,15 @@ class LevelFailed extends StatelessWidget {
           accent: MenuPalette.friend,
           onPressed: onRetry,
         ),
+        // Home rather than the level grid. Out of lives is where a run ends,
+        // and the grid is somewhere you go to pick a level rather than
+        // somewhere you go when you have stopped playing one.
         PanelButton(
-          label: 'LEVELS',
-          icon: Icons.grid_view_rounded,
+          label: 'HOME',
+          icon: Icons.home_rounded,
           filled: true,
           accent: MenuPalette.levels,
-          onPressed: onLevels,
+          onPressed: onHome,
         ),
       ],
     );
