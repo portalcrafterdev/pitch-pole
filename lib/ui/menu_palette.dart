@@ -32,6 +32,15 @@ class MenuPalette {
   static const Color hillFar = Color(0xFF86D98C);
   static const Color hillNear = Color(0xFF54BE68);
   static const Color grass = Color(0xFF3EA855);
+
+  /// Planting on each ridge. A hill band without bushes on it reads as a
+  /// coloured shape; with them it reads as a landscape, and that is the whole
+  /// difference between a backdrop and a background.
+  /// Darker than the band each sits on, not lighter. Planted in front of a
+  /// hill it catches less light than the slope behind it, and a paler blob on
+  /// a pale hill simply vanished.
+  static const Color bushFar = Color(0xFF6FC97C);
+  static const Color bushNear = Color(0xFF43AC57);
   static const Color grassDark = Color(0xFF2E8442);
 
   /// Text on a bright sky. Near black would be harsh on a page this cheerful,
@@ -46,7 +55,12 @@ class MenuPalette {
   /// The button colours. Each is deep enough to carry white text, because a
   /// pastel fill with white on it is the usual way a bright design becomes
   /// unreadable.
-  static const Color play = Color(0xFF23C26B);
+  ///
+  /// Play is a grass green rather than the blue green it was, so the primary
+  /// action belongs to the hills it is standing on instead of floating over
+  /// them. It is the bottom of the slab's gradient; the top is lightened from
+  /// it and the lip deepened from it, so one value still defines the button.
+  static const Color play = Color(0xFF5FBE2E);
   static const Color levels = Color(0xFF3D9BF0);
   static const Color friend = Color(0xFFFF9838);
   static const Color pink = Color(0xFFFF6FA5);

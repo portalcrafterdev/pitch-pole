@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/menu_audio.dart';
 import '../menu_palette.dart';
+import '../widgets/bubble_text.dart';
 import '../palette.dart';
 
 /// Below this, the screen is a landscape phone and height is the scarce thing.
@@ -33,11 +34,32 @@ class OverlayPanel extends StatelessWidget {
     this.child,
     required this.actions,
     this.onDismiss,
+    this.titleGradient,
+    this.subtitleAbove = false,
+    this.centerContent = false,
   });
 
   final String title;
   final Color accent;
   final String? subtitle;
+
+  /// Fills the title with these instead of [accent], in the same bubble
+  /// treatment the menus use for their headings. Set only where the title is
+  /// the reward — a panel that says a life was lost should not be celebrating.
+  final List<Color>? titleGradient;
+
+  /// Puts the subtitle over the title rather than under it. Which level was
+  /// cleared is the label; CLEARED is the headline, and a headline reads first
+  /// wherever it is on the page.
+  final bool subtitleAbove;
+
+  /// Centres the left column even in the two column layout.
+  ///
+  /// Off by default: a panel whose body is a line of prose reads better ranged
+  /// left. On the cleared panel the body is a row of stars and a strip of
+  /// numbers, and a heading ranged left over a centred row of stars looks like
+  /// two things that were laid out separately — because they were.
+  final bool centerContent;
   final Widget? child;
   final List<Widget> actions;
 
@@ -92,13 +114,27 @@ class OverlayPanel extends StatelessWidget {
                       maxWidth: twoColumn ? 640 : 380,
                     ),
                     decoration: BoxDecoration(
-                      color: MenuPalette.card,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: accent, width: 3),
+                      // A white rim with the accent as a moulded lip below it,
+                      // the same way every slab on the page is built. The rim
+                      // was the accent itself, which put a hard coloured line
+                      // around a white card and read as a border rather than
+                      // as an edge.
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [MenuPalette.card, MenuPalette.cardSoft],
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.white, width: 4),
                       boxShadow: [
                         BoxShadow(
-                          color: _deepen(accent, 0.18).withValues(alpha: 0.5),
-                          offset: const Offset(0, 6),
+                          color: _deepen(accent, 0.13),
+                          offset: const Offset(0, 8),
+                        ),
+                        BoxShadow(
+                          color: Palette.background.withValues(alpha: 0.45),
+                          offset: const Offset(0, 14),
+                          blurRadius: 22,
                         ),
                       ],
                     ),
@@ -137,9 +173,26 @@ class OverlayPanel extends StatelessWidget {
           child!,
         ],
         SizedBox(height: short ? 14 : 24),
-        ...actions,
+        ..._spacedActions(short),
       ],
     );
+  }
+
+  /// The actions with air between them.
+  ///
+  /// A slab already carries a moulded lip, and stacked with only that between
+  /// them four buttons read as one block of colour rather than as four things
+  /// you can press. Kept small on a short screen: these panels fit three or
+  /// four buttons into about 360 points of height, and the gaps come out of
+  /// the same budget.
+  List<Widget> _spacedActions(bool short) {
+    final gap = SizedBox(height: short ? 6 : 8);
+    return [
+      for (var i = 0; i < actions.length; i++) ...[
+        if (i > 0) gap,
+        actions[i],
+      ],
+    ];
   }
 
   Widget _twoColumn(bool short) {
@@ -149,7 +202,9 @@ class OverlayPanel extends StatelessWidget {
         Expanded(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: centerContent
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.stretch,
             // The buttons decide the row's height, and a panel with no body
             // has a short left side, so the heading was sitting at the top of
             // a tall white space. Centred, it lines up with the buttons
@@ -158,7 +213,7 @@ class OverlayPanel extends StatelessWidget {
             mainAxisAlignment:
                 child == null ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
-              ..._heading(short, center: false),
+              ..._heading(short, center: centerContent),
               if (child != null) ...[
                 SizedBox(height: short ? 12 : 18),
                 child!,
@@ -176,7 +231,7 @@ class OverlayPanel extends StatelessWidget {
           width: 244,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: actions,
+            children: _spacedActions(short),
           ),
         ),
       ],
@@ -184,17 +239,58 @@ class OverlayPanel extends StatelessWidget {
   }
 
   List<Widget> _heading(bool short, {required bool center}) {
+    final gradient = titleGradient;
+    final heading = gradient == null
+        ? Text(
+            title.toUpperCase(),
+            textAlign: center ? TextAlign.center : TextAlign.start,
+            style: TextStyle(
+              color: accent,
+              fontSize: short ? 20 : 22,
+              letterSpacing: 3,
+              fontWeight: FontWeight.w900,
+            ),
+          )
+        : BubbleText(
+            text: title.toUpperCase(),
+            textAlign: center ? TextAlign.center : TextAlign.start,
+            keyline: short ? 7 : 8,
+            gradient: gradient,
+            shadow: _deepen(accent, 0.13).withValues(alpha: 0.45),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: short ? 28 : 32,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w900,
+            ),
+          );
+
+    final label = subtitle == null
+        ? null
+        : Text(
+            subtitle!,
+            textAlign: center ? TextAlign.center : TextAlign.start,
+            style: TextStyle(
+              color: MenuPalette.inkSoft,
+              // Above the headline it is a label on the result, so it is set
+              // small and wide like one. Under the headline it is a sentence
+              // about the result, and reads as body.
+              fontSize: subtitleAbove ? 12 : (short ? 13 : 14),
+              height: 1.35,
+              letterSpacing: subtitleAbove ? 2 : 0,
+              fontWeight: subtitleAbove ? FontWeight.w900 : FontWeight.w600,
+            ),
+          );
+
+    if (subtitleAbove) {
+      return [
+        if (label != null) ...[label, const SizedBox(height: 4)],
+        heading,
+      ];
+    }
+
     return [
-      Text(
-        title.toUpperCase(),
-        textAlign: center ? TextAlign.center : TextAlign.start,
-        style: TextStyle(
-          color: accent,
-          fontSize: short ? 20 : 22,
-          letterSpacing: 3,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
+      heading,
       if (subtitle != null) ...[
         const SizedBox(height: 6),
         Text(
@@ -221,6 +317,19 @@ Color _deepen(Color c, double amount) {
       .toColor();
 }
 
+/// The other end of [_deepen], for the top of a slab's gradient.
+///
+/// Saturation comes down as lightness goes up. Lifting lightness alone turns a
+/// saturated accent neon at the top of the button, which reads as a colour
+/// error rather than as light falling on it.
+Color _lighten(Color c, double amount) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl
+      .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
+      .withSaturation((hsl.saturation - 0.04).clamp(0.0, 1.0))
+      .toColor();
+}
+
 /// Primary action inside an overlay, and the only button shape the game uses.
 ///
 /// It is a solid slab with a hard lip under it rather than an outline, and it
@@ -239,6 +348,9 @@ class PanelButton extends StatefulWidget {
     this.accent = MenuPalette.ink,
     this.compact,
     this.surface = MenuPalette.card,
+    this.sublabel,
+    this.trailing,
+    this.hero = false,
   });
 
   final String label;
@@ -246,6 +358,20 @@ class PanelButton extends StatefulWidget {
   final IconData? icon;
   final bool filled;
   final Color accent;
+
+  /// A quiet second line under the label. Setting it makes the slab taller and
+  /// left aligns the label, because a two line block centred against a wide
+  /// button reads as floating rather than as the start of a row.
+  final String? sublabel;
+
+  /// Anything the button should carry on its right — the level number and its
+  /// stars, on the one button that opens a level.
+  final Widget? trailing;
+
+  /// The primary action on a page. Taller, with a larger label and icon, so
+  /// the eye lands on it before anything else. Only one button on a screen
+  /// should ever set this.
+  final bool hero;
 
   /// Shorter, for a landscape phone where the whole page has to fit in about
   /// 340 points of height.
@@ -283,7 +409,17 @@ class _PanelButtonState extends State<PanelButton> {
 
     // Taken off the fill rather than off the accent, so a quiet button gets a
     // lip darker than itself instead of a paler one.
-    final lip = widget.filled ? _deepen(accent, 0.16) : _deepen(fill, 0.10);
+    //
+    // Thirteen percent, not twenty. Twenty took the green so far down that the
+    // lip came out olive rather than a shade of the button above it, and the
+    // whole slab read as dirty. A moulded edge is the same colour in shadow,
+    // not a different colour.
+    final lip = widget.filled ? _deepen(accent, 0.13) : _deepen(fill, 0.10);
+
+    // The slab is lit from above: the top of the gradient is the fill with
+    // light on it, the bottom is the fill itself. One accent still defines the
+    // whole button, so no caller has to know about any of this.
+    final crown = _lighten(fill, widget.filled ? 0.13 : 0.05);
 
     // White on a pale fill is the usual way a bright design becomes
     // unreadable, so the label picks its own colour off the fill it lands on
@@ -292,8 +428,18 @@ class _PanelButtonState extends State<PanelButton> {
         ? accent
         : (fill.computeLuminance() > 0.45 ? MenuPalette.ink : Colors.white);
 
-    final rest = compact ? 5.0 : 6.0;
+    final rest = compact ? 6.0 : 7.0;
     final lipDepth = _down ? 2.0 : rest;
+    final tall = widget.sublabel != null || widget.trailing != null;
+    final height = widget.hero
+        ? (compact ? 56.0 : 66.0)
+        : tall
+            ? (compact ? 54.0 : 62.0)
+            : (compact ? 44.0 : 52.0);
+    // Scaled with the button rather than fixed, so a tall slab is a pill and
+    // a short one is still a rounded rectangle instead of both being the same
+    // corner on different heights.
+    final radius = height * 0.38;
 
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 8 : 10),
@@ -314,55 +460,135 @@ class _PanelButtonState extends State<PanelButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 90),
           curve: Curves.easeOut,
-          height: compact ? 44 : 52,
+          height: height,
           width: double.infinity,
           // Sinks by exactly what the lip loses, so the top face travels and
           // the bottom edge stays put.
           transform: Matrix4.translationValues(0, rest - lipDepth, 0),
           decoration: BoxDecoration(
-            color: fill,
-            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [crown, fill],
+            ),
+            borderRadius: BorderRadius.circular(radius),
+            // A full white rim rather than a translucent one. It is what
+            // separates the slab from whatever it is standing on, and at 45%
+            // over a bright sky there was nothing there to see.
             border: Border.all(
-              color: widget.filled
-                  ? Colors.white.withValues(alpha: 0.45)
-                  : accent.withValues(alpha: 0.35),
-              width: 2,
+              color: widget.filled ? Colors.white : Colors.white,
+              width: 3,
             ),
             boxShadow: [
               // Hard edged rather than blurred: this is a moulded edge, not a
               // shadow, and a blur would read as the button floating.
               BoxShadow(color: lip, offset: Offset(0, lipDepth)),
+              // And then a real shadow under the lip, so the slab sits on the
+              // page instead of being pasted onto it.
+              BoxShadow(
+                color: MenuPalette.ink.withValues(alpha: 0.16),
+                offset: Offset(0, lipDepth + 3),
+                blurRadius: 10,
+              ),
             ],
           ),
           // Keeps the label off the border. Without it a label long enough to
           // be scaled down lands hard against both edges, which reads as text
           // bursting out of the slab rather than as a smaller label.
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          padding: EdgeInsets.symmetric(horizontal: tall ? 16 : 14),
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              if (widget.icon != null) ...[
-                Icon(widget.icon, size: 22, color: onFill),
-                const SizedBox(width: 10),
-              ],
-              // Shrunk to fit rather than clipped or ellipsed. A label here is
-              // an instruction, so losing the end of it is worse than losing a
-              // point of size, and a long one overflowed the row outright
-              // before this.
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    widget.label,
-                    maxLines: 1,
-                    style: TextStyle(
-                      color: onFill,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+              // The highlight. A rounded band across the top third, fading
+              // out: the single cheapest thing that turns a flat rectangle
+              // into something moulded.
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: height * 0.36,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(radius),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: widget.filled ? 0.34 : 0.55),
+                        Colors.white.withValues(alpha: 0),
+                      ],
                     ),
                   ),
                 ),
+              ),
+              Row(
+                mainAxisAlignment:
+                    tall ? MainAxisAlignment.start : MainAxisAlignment.center,
+                children: [
+                  if (widget.icon != null) ...[
+                    Icon(widget.icon,
+                        size: widget.hero ? 30 : (tall ? 26 : 22),
+                        color: onFill),
+                    const SizedBox(width: 10),
+                  ],
+                  // Shrunk to fit rather than clipped or ellipsed. A label
+                  // here is an instruction, so losing the end of it is worse
+                  // than losing a point of size, and a long one overflowed the
+                  // row outright before this.
+                  Flexible(
+                    // Tight when the slab is tall, so the label block fills the
+                    // middle and pushes the trailing content to the right edge.
+                    fit: tall ? FlexFit.tight : FlexFit.loose,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: tall
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.center,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            widget.label,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: onFill,
+                              fontSize: widget.hero ? 26 : (tall ? 18 : 16),
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: widget.hero ? 2 : 1.2,
+                              height: 1.1,
+                              shadows: widget.filled
+                                  ? const [
+                                      Shadow(
+                                        color: Color(0x3A000000),
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        if (widget.sublabel != null)
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              widget.sublabel!,
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: onFill.withValues(alpha: 0.78),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (widget.trailing != null) ...[
+                    const SizedBox(width: 10),
+                    widget.trailing!,
+                  ],
+                ],
               ),
             ],
           ),
