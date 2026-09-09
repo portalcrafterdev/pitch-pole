@@ -118,29 +118,20 @@ class _GameScreenState extends State<GameScreen> {
     // level.
     progressStore.addListener(_applyAudioSettings);
 
-    // Held still until the break ad is out of the way. The level is already
-    // on screen behind it, so the player sees where they are about to be
-    // rather than a black screen with an ad on it.
-    _game.paused = true;
-    _game.lockInput();
-    unawaited(_openLevel());
+    _openLevel();
   }
 
-  /// The ad before a level starts.
+  /// Starts the run.
   ///
-  /// Awaited, but [AdsController.showAtBreak] returns straight away when
-  /// nothing is loaded, so this is not a wait the player can be made to sit
-  /// through: no ad means the run simply starts.
-  Future<void> _openLevel() async {
-    // Counted here rather than on a win, so an evening spent failing a hard
-    // level still counts as having played. Before the ad, because whether an
-    // ad happened to be loaded has nothing to do with whether they turned up.
+  /// There is no ad here any more. The break moved to the moment a level is
+  /// cleared, so a level now begins the instant it is opened — see [_onWin].
+  /// One is lined up while the run is going, so it is loaded by the time the
+  /// door is reached.
+  void _openLevel() {
+    // Counted on opening rather than on a win, so an evening spent failing a
+    // hard level still counts as having played.
     unawaited(progressStore.notePlayed());
-
-    await adsController.showAtBreak();
-    if (!mounted) return;
-    _game.paused = false;
-    _game.unlockInput();
+    adsController.preload();
     _focus.requestFocus();
   }
 
@@ -156,7 +147,10 @@ class _GameScreenState extends State<GameScreen> {
     // panel appears means the offer arrives after the player has already read
     // the panel and decided, or does not arrive at all.
     adsController.preloadRewarded();
-    return adsController.showAtBreak();
+    // Forced, like the clear. The respawn is held until this returns, so the
+    // ad is seen before the next life is spent rather than over the top of a
+    // character already running again.
+    return adsController.showAtBreak(force: true);
   }
 
   void _applyAudioSettings() => _game.applyAudioSettings(
@@ -187,6 +181,23 @@ class _GameScreenState extends State<GameScreen> {
     });
     unawaited(_recordAndAward(stars, seconds, coins));
     _game.overlays.add(_complete);
+
+    // The break, now that the level is behind them rather than in front.
+    //
+    // The panel goes up first and the ad over the top of it, the same way
+    // running out of lives works: dismissing the ad lands the player on the
+    // panel that says how the run went rather than on a level that is
+    // already over.
+    //
+    // Forced past the ration, because a clear is the break this game is
+    // built around now. Sharing one ration with deaths meant the deaths on
+    // the way through a level ate the break the clear was meant to take, so
+    // an ad turned up for failing and never for finishing.
+    //
+    // Not awaited, and it returns immediately when nothing is loaded, so a
+    // player with no connection reaches the panel exactly as fast as they
+    // did before ads existed.
+    unawaited(adsController.showAtBreak(force: true));
   }
 
   /// Saves the result, then works out what it earned.
@@ -245,7 +256,7 @@ class _GameScreenState extends State<GameScreen> {
     // _onLifeLost — that gate only runs when there is something to respawn to.
     unawaited(progressStore.recordDeath(_level.id));
     _game.overlays.add(_failed);
-    unawaited(adsController.showAtBreak());
+    unawaited(adsController.showAtBreak(force: true));
   }
 
   void _openPause() {

@@ -227,12 +227,27 @@ class AdsController extends ChangeNotifier {
   ///
   /// Returns immediately, with false, when there is nothing loaded. Callers
   /// can await this unconditionally and carry on either way.
-  Future<bool> showAtBreak() async {
+  /// [force] spends the break whether or not the ration says it is due.
+  ///
+  /// **Every caller in the game currently passes it**, so the ration is dormant
+  /// rather than gone. It was one shared window across clears and deaths, and
+  /// with one window they starve each other: a clear reset the clock and the
+  /// deaths on the next level fell inside it, or the deaths spent it and the
+  /// clear at the end got nothing. Whichever way round, the ad turned up
+  /// somewhere other than where it was meant to.
+  ///
+  /// The cost of forcing is real and is worth stating. A level is exactly
+  /// thirty seconds of running, but a death can come five seconds in, and
+  /// there are three lives — so a bad run can produce four breaks inside one
+  /// attempt. That is the frequency [minimumGap] was written to stop, and the
+  /// reason given there still stands. Reinstating it is one word per call
+  /// site.
+  Future<bool> showAtBreak({bool force = false}) async {
     if (!isSupported || _showing) return false;
 
     // Too soon after the last one. The loaded ad is kept rather than burnt, so
     // the next break that is actually due still has something to show.
-    if (!_breakIsDue) return false;
+    if (!force && !_breakIsDue) return false;
 
     final ad = _interstitial;
     if (ad == null) {

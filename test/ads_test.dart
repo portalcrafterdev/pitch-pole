@@ -11,6 +11,9 @@ import 'package:pitchpole/game/logic/level_simulator.dart';
 import 'package:pitchpole/game/pitchpole_game.dart';
 import 'package:pitchpole/ui/overlays/level_failed.dart';
 import 'package:pitchpole/ui/screens/game_screen.dart';
+import 'package:pitchpole/ui/screens/home_screen.dart';
+import 'package:pitchpole/ui/screens/level_select_screen.dart';
+import 'package:pitchpole/ui/widgets/ad_banner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// There is no ads plugin under `flutter test`, so every call into it fails.
@@ -45,9 +48,9 @@ void main() {
 
     test('breaks are rationed rather than taken every time one is offered',
         () async {
-      // showAtBreak is called at the start of every level, on every life lost
-      // and when the last one goes. Losing a life is the most common thing
-      // that happens in a runner, so without a cap a bad run on a short level
+      // showAtBreak is called when a level is cleared, on every life lost and
+      // when the last one goes. Losing a life is the most common thing that
+      // happens in a runner, so without a cap a bad run on a short level
       // produced an ad roughly every fifteen seconds.
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       addTearDown(() {
@@ -74,6 +77,33 @@ void main() {
       // loaded in a test, so this returns false for the other reason, and
       // what is being checked is that it got as far as looking.
       expect(adsController.debugBreakIsDue, isTrue);
+    });
+
+    test('a forced break is not refused by the ration', () async {
+      // Every break in the game is forced now. One shared window across
+      // clears and deaths meant the two starved each other: a clear reset the
+      // clock and the deaths on the next level fell inside it, so the ad kept
+      // turning up somewhere other than where it was meant to.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        adsController.clock = DateTime.now;
+      });
+
+      final now = DateTime(2026, 8, 12, 12);
+      adsController.clock = () => now;
+      adsController.debugMarkBreakTaken();
+
+      expect(adsController.debugBreakIsDue, isFalse,
+          reason: 'a break was just taken, so the ration is spent');
+
+      // Nothing is loaded under test, so both come back false. What is being
+      // checked is which of them got past the ration to look at all: the
+      // unforced one is refused before it ever asks for an ad.
+      expect(await adsController.showAtBreak(), isFalse);
+      expect(await adsController.showAtBreak(force: true), isFalse);
+      expect(adsController.debugBreakIsDue, isFalse,
+          reason: 'and a break with no ad to show does not reset the clock');
     });
 
     test('a platform with no ads at all says so rather than throwing',
@@ -251,7 +281,39 @@ void main() {
     });
   });
 
-  testWidgets('a level still starts when there is no ad to show',
+  group('where a banner is allowed to be', () {
+    // The rule is not taste. In the halves scheme the whole screen is a
+    // control and in the other the pads sit in the bottom corners, so a
+    // banner anywhere near the play field is a misplaced tap waiting to
+    // happen — and by Google's own rules an accidental click they bill back.
+    // The two menus are browsing: nothing on them is timed or is a control.
+    Future<void> pump(WidgetTester tester, Widget screen) async {
+      // The level select asks the repository for a count, and a real isolate
+      // never finishes inside the fake clock, so it is read for real first.
+      await tester.runAsync(() => levelRepository.count());
+      await tester.pumpWidget(MaterialApp(home: screen));
+      await tester.pump();
+    }
+
+    testWidgets('the home screen carries one', (tester) async {
+      await pump(tester, const HomeScreen());
+      expect(find.byType(AdBanner), findsOneWidget);
+    });
+
+    testWidgets('the level select carries one', (tester) async {
+      await pump(tester, const LevelSelectScreen());
+      expect(find.byType(AdBanner), findsOneWidget);
+    });
+
+    testWidgets('it takes no height until an ad has loaded', (tester) async {
+      // Otherwise every device with nothing to serve gets an empty strip
+      // across the bottom of a page that had a meadow running into it.
+      await pump(tester, const HomeScreen());
+      expect(tester.getSize(find.byType(AdBanner)).height, 0);
+    });
+  });
+
+  testWidgets('a level opens straight into the run, never onto an ad',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
@@ -271,14 +333,16 @@ void main() {
 
       expect(tester.takeException(), isNull);
 
-      // The run is held paused until the break ad is dealt with. This is the
-      // regression that matters: if that ever fails instead of returning,
-      // every level in the game freezes before it starts.
+      // Nothing is held any more: the break moved to the moment a level is
+      // cleared, so a level begins the instant it is opened whether an ad is
+      // loaded or not. This is the regression that matters — the level used
+      // to wait on showAtBreak, and if that ever failed instead of returning
+      // every level in the game froze before it started.
       final widget = tester.widget<GameWidget<PitchpoleGame>>(
         find.byType(GameWidget<PitchpoleGame>),
       );
       expect(widget.game!.paused, isFalse,
-          reason: 'the level must start even though no ad was available');
+          reason: 'a level must never open on an ad, loaded or not');
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
