@@ -118,6 +118,11 @@ class _GameScreenState extends State<GameScreen> {
     // level.
     progressStore.addListener(_applyAudioSettings);
 
+    // No banner over a run. The whole screen is a control in the halves
+    // scheme and the pads sit in the bottom corners in the other, so one near
+    // the play field is a misplaced tap and an accidental click Google bills
+    // back. Handed back in [dispose], whichever way the level ended.
+    adsController.bannerAllowed = false;
     _openLevel();
   }
 
@@ -162,6 +167,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    adsController.bannerAllowed = true;
     progressStore.removeListener(_applyAudioSettings);
     _focus.dispose();
     super.dispose();

@@ -80,6 +80,30 @@ class AdsController extends ChangeNotifier {
   /// cannot stack one on top of the other.
   bool _showing = false;
 
+  bool _bannerAllowed = true;
+
+  /// Whether the one banner in the app may be on screen right now.
+  ///
+  /// False for the whole of a run. There is a single banner for the whole
+  /// app rather than one per menu, because two screens each holding an ad
+  /// asked the same unit for two at once and the second was declined — and
+  /// tearing one down and building another on every navigation asked for a
+  /// fresh ad every few seconds, which is declined for the same reason. One
+  /// ad, loaded once, is what the unit will actually serve.
+  bool get bannerAllowed => _bannerAllowed;
+
+  /// Set by the game screen for the length of a run.
+  ///
+  /// Not a style choice. The whole screen is a control in the halves scheme
+  /// and the pads sit in the bottom corners in the other, so a banner near
+  /// the play field is a misplaced tap waiting to happen and, by Google's own
+  /// rules, an accidental click they bill back.
+  set bannerAllowed(bool value) {
+    if (_bannerAllowed == value) return;
+    _bannerAllowed = value;
+    notifyListeners();
+  }
+
   /// When the last interstitial was dismissed, so the next one can be made to
   /// wait.
   DateTime? _lastBreak;

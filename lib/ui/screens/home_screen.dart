@@ -11,7 +11,6 @@ import '../menu_palette.dart';
 import '../motion.dart';
 import '../overlays/overlay_panel.dart';
 import '../palette.dart';
-import '../widgets/ad_banner.dart';
 import '../widgets/bubble_text.dart';
 import '../widgets/home_backdrop.dart';
 import '../widgets/sign_in_button.dart';
@@ -34,15 +33,6 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: MenuPalette.skyLow,
-      // Browsing, not playing. Nothing here is timed and nothing on the page
-      // is a control, which is the same test the level select passes — and
-      // the test the run itself fails, since the whole screen is a control in
-      // the halves scheme and the pads sit in the bottom corners in the other.
-      //
-      // It costs the page nothing when there is no ad: [AdBanner] is a zero
-      // height box until one has actually loaded, so the meadow runs to the
-      // bottom edge exactly as it does now on a device with nothing to serve.
-      bottomNavigationBar: const AdBanner(),
       body: Stack(
         fit: StackFit.expand,
         children: [

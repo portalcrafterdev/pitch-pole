@@ -8,7 +8,6 @@ import '../../data/progress_store.dart';
 import '../chapters.dart';
 import '../home_scene/sky_art.dart';
 import '../menu_palette.dart';
-import '../widgets/ad_banner.dart';
 import '../widgets/bubble_text.dart';
 import '../widgets/star_row.dart';
 import 'game_screen.dart';
@@ -237,9 +236,6 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
       // It floats over instead; the dialog has its own route and lifts itself
       // clear of the keyboard regardless.
       resizeToAvoidBottomInset: false,
-      // Browsing, not playing: nothing here is timed and nothing is a
-      // control, so it is the one screen a banner belongs on.
-      bottomNavigationBar: const AdBanner(),
       // The same sky and hills the home screen stands on, so the grid is a
       // page of that world rather than a settings list in its colours.
       body: Stack(

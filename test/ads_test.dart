@@ -10,6 +10,7 @@ import 'package:pitchpole/game/logic/run_state.dart';
 import 'package:pitchpole/game/logic/level_simulator.dart';
 import 'package:pitchpole/game/pitchpole_game.dart';
 import 'package:pitchpole/ui/overlays/level_failed.dart';
+import 'package:pitchpole/ui/app_shell.dart';
 import 'package:pitchpole/ui/screens/game_screen.dart';
 import 'package:pitchpole/ui/screens/home_screen.dart';
 import 'package:pitchpole/ui/screens/level_select_screen.dart';
@@ -282,27 +283,31 @@ void main() {
   });
 
   group('where a banner is allowed to be', () {
-    // The rule is not taste. In the halves scheme the whole screen is a
-    // control and in the other the pads sit in the bottom corners, so a
-    // banner anywhere near the play field is a misplaced tap waiting to
-    // happen — and by Google's own rules an accidental click they bill back.
-    // The two menus are browsing: nothing on them is timed or is a control.
+    // One banner for the whole app, in the shell below the navigator. A
+    // banner per menu did not work: the home screen stays alive underneath
+    // the level select, so the two asked the same unit for an ad at once and
+    // the second was declined.
     Future<void> pump(WidgetTester tester, Widget screen) async {
-      // The level select asks the repository for a count, and a real isolate
-      // never finishes inside the fake clock, so it is read for real first.
       await tester.runAsync(() => levelRepository.count());
-      await tester.pumpWidget(MaterialApp(home: screen));
+      await tester.pumpWidget(MaterialApp(home: screen, builder: appShell));
       await tester.pump();
     }
 
-    testWidgets('the home screen carries one', (tester) async {
-      await pump(tester, const HomeScreen());
-      expect(find.byType(AdBanner), findsOneWidget);
+    setUp(() => adsController.bannerAllowed = true);
+
+    testWidgets('the menus sit above one', (tester) async {
+      for (final screen in [const HomeScreen(), const LevelSelectScreen()]) {
+        await pump(tester, screen);
+        expect(find.byType(AdBanner), findsOneWidget);
+      }
     });
 
-    testWidgets('the level select carries one', (tester) async {
-      await pump(tester, const LevelSelectScreen());
-      expect(find.byType(AdBanner), findsOneWidget);
+    testWidgets('a run has none at all', (tester) async {
+      // Not hidden but still loading behind the level: gone, so it is neither
+      // a misplaced tap nor an impression nobody could see.
+      adsController.bannerAllowed = false;
+      await pump(tester, const HomeScreen());
+      expect(find.byType(AdBanner), findsNothing);
     });
 
     testWidgets('it takes no height until an ad has loaded', (tester) async {
