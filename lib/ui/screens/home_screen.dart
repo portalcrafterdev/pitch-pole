@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../data/achievements.dart';
 import '../../data/games_auth.dart';
+import '../../data/leaderboards.dart';
 import '../../data/level_repository.dart';
 import '../../data/menu_audio.dart';
 import '../../data/progress_store.dart';
@@ -169,33 +171,63 @@ class HomeScreen extends StatelessWidget {
                       Positioned(
                         top: 2,
                         right: 12,
-                        child: Row(
-                          children: [
-                            // Named for what pressing it does. Signed out
-                            // that is signing in; once there is an account
-                            // there is nothing left to sign into and the tile
-                            // is the profile it opens.
-                            AnimatedBuilder(
-                              animation: gamesAuth,
-                              builder: (context, _) => _IconTile(
+                        // One builder over the whole row, because two of
+                        // the four tiles come and go with the account.
+                        child: AnimatedBuilder(
+                          animation: gamesAuth,
+                          builder: (context, _) => Row(
+                            children: [
+                              // Named for what pressing it does. Signed out
+                              // that is signing in; once there is an account
+                              // there is nothing left to sign into and the
+                              // tile is the profile it opens.
+                              _IconTile(
                                 label: gamesAuth.isSignedIn
                                     ? 'PROFILE'
                                     : 'SIGN IN',
                                 onPressed: () => openProfile(context),
                                 child: const _MascotFace(),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            _IconTile(
-                              label: 'SETTINGS',
-                              onPressed: () => _showSettings(context),
-                              child: const Icon(
-                                Icons.settings_rounded,
-                                size: 24,
-                                color: Color(0xFF4A6C7C),
+                              const SizedBox(width: 10),
+                              // Their own tiles rather than rows two taps
+                              // down inside the profile sheet, but only once
+                              // there is an account. Section 15's reason
+                              // holds: signed out there is nothing behind
+                              // either of them, and a menu item that does
+                              // nothing is worse than no menu item.
+                              if (gamesAuth.isSignedIn) ...[
+                                _IconTile(
+                                  label: 'RANKS',
+                                  onPressed: () => leaderboards.show(),
+                                  child: const Icon(
+                                    Icons.leaderboard_rounded,
+                                    size: 24,
+                                    color: MenuPalette.levels,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                _IconTile(
+                                  label: 'AWARDS',
+                                  onPressed: () => achievements.show(),
+                                  child: const Icon(
+                                    Icons.emoji_events_rounded,
+                                    size: 24,
+                                    color: MenuPalette.gold,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              _IconTile(
+                                label: 'SETTINGS',
+                                onPressed: () => _showSettings(context),
+                                child: const Icon(
+                                  Icons.settings_rounded,
+                                  size: 24,
+                                  color: Color(0xFF4A6C7C),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ],

@@ -21,6 +21,7 @@ import '../palette.dart';
 Future<void> openProfile(BuildContext context) =>
     const SignInButton().openProfile(context);
 
+
 class SignInButton extends StatelessWidget {
   const SignInButton({super.key, this.compact = false});
 

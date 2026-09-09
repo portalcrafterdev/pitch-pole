@@ -5,6 +5,7 @@ import 'package:pitchpole/data/games_auth.dart';
 import 'package:pitchpole/data/level_repository.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/main.dart';
+import 'package:pitchpole/ui/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Play Games and Game Center are platform services with no test double, so
@@ -139,6 +140,41 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       expect(gamesAuth.service, GamesService.gameCenter);
       expect(gamesAuth.isSupported, isTrue);
+    });
+  });
+
+  group('the two Play screens have tiles of their own', () {
+    Future<void> pumpHome(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(732, 360) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+      await tester.pump();
+    }
+
+    testWidgets('signed out there are none', (tester) async {
+      // Section 15's reason, unchanged: signed out there is nothing behind
+      // either screen, and a menu item that does nothing is worse than no
+      // menu item.
+      expect(gamesAuth.isSignedIn, isFalse);
+      await pumpHome(tester);
+
+      expect(find.text('SIGN IN'), findsOneWidget);
+      expect(find.text('RANKS'), findsNothing);
+      expect(find.text('AWARDS'), findsNothing);
+    });
+
+    testWidgets('an account brings both out, next to the profile',
+        (tester) async {
+      // On the home screen rather than two taps down inside the profile
+      // sheet: two taps deep is where a thing goes to be forgotten, and these
+      // are the only places the game says how you stand against anybody else.
+      gamesAuth.debugSetSignedIn('Tester');
+      await pumpHome(tester);
+
+      expect(find.text('PROFILE'), findsOneWidget);
+      expect(find.text('RANKS'), findsOneWidget);
+      expect(find.text('AWARDS'), findsOneWidget);
     });
   });
 
