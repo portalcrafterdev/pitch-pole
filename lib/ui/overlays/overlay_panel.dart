@@ -338,6 +338,37 @@ Color _lighten(Color c, double amount) {
 /// and the youngest player here cannot read the label to begin with. A thing
 /// that looks like a physical button and visibly goes down when pushed does
 /// not need reading.
+/// A dark ring around each letter, and a hard drop under it.
+///
+/// Drawn as eight offset shadows rather than a stroked paint, because a
+/// stroke needs a second [Text] behind the first and a [TextStyle] is the
+/// only thing a label like this actually carries.
+///
+/// **Only ever put on light text over a colour.** The same ring around dark
+/// text closes the counters and fills the glyph in solid, which is exactly
+/// what it did to the trophy and star counts when it was inherited by every
+/// style in the app instead of asked for here.
+List<Shadow> keylineShadows(double width) => [
+      for (final at in const [
+        Offset(1, 0),
+        Offset(-1, 0),
+        Offset(0, 1),
+        Offset(0, -1),
+        Offset(0.7, 0.7),
+        Offset(-0.7, 0.7),
+        Offset(0.7, -0.7),
+        Offset(-0.7, -0.7),
+      ])
+        Shadow(
+          color: MenuPalette.ink,
+          offset: Offset(at.dx * width, at.dy * width),
+        ),
+      Shadow(
+        color: MenuPalette.ink.withValues(alpha: 0.34),
+        offset: Offset(0, width * 1.8),
+      ),
+    ];
+
 class PanelButton extends StatefulWidget {
   const PanelButton({
     super.key,
@@ -557,13 +588,13 @@ class _PanelButtonState extends State<PanelButton> {
                               letterSpacing: widget.hero ? 2 : 1.2,
                               height: 1.1,
                               shadows: widget.filled
-                                  ? const [
+                                  ? keylineShadows(widget.hero ? 2.0 : 1.5)
+                                  : const [
                                       Shadow(
                                         color: Color(0x3A000000),
                                         offset: Offset(0, 2),
                                       ),
-                                    ]
-                                  : null,
+                                    ],
                             ),
                           ),
                         ),

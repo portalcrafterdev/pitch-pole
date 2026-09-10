@@ -67,6 +67,15 @@ flutter:
     - assets/levels/
     - assets/audio/
 
+  # One chunky rounded display face for the whole shell. Single weight on
+  # purpose: it is a display face, so every w700 to w900 in the app resolves
+  # to the same cut and the hierarchy keeps coming from size and colour,
+  # exactly as it does now.
+  fonts:
+    - family: LuckiestGuy
+      fonts:
+        - asset: assets/fonts/LuckiestGuy-Regular.ttf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

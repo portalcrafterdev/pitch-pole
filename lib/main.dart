@@ -69,6 +69,41 @@ Future<void> main() async {
   runApp(const PitchpoleApp());
 }
 
+/// Puts the face and its keyline on every style the menus inherit from.
+///
+/// Luckiest Guy ships one cut, which is the point of a display face: every
+/// w700 to w900 the app asks for resolves to the same letters, so the
+/// hierarchy keeps coming from size and colour exactly as it does now.
+///
+/// Handled here rather than on each [TextStyle] because none of them name a
+/// family: they merge with this, so one entry changes the lettering
+/// everywhere without touching a colour, a size or a layout.
+ThemeData _withLettering(ThemeData theme) =>
+    theme.copyWith(textTheme: _lettering(theme.textTheme));
+
+TextTheme _lettering(TextTheme base) {
+  TextStyle? f(TextStyle? style) => style?.copyWith(
+        fontFamily: 'LuckiestGuy',
+      );
+  return TextTheme(
+    displayLarge: f(base.displayLarge),
+    displayMedium: f(base.displayMedium),
+    displaySmall: f(base.displaySmall),
+    headlineLarge: f(base.headlineLarge),
+    headlineMedium: f(base.headlineMedium),
+    headlineSmall: f(base.headlineSmall),
+    titleLarge: f(base.titleLarge),
+    titleMedium: f(base.titleMedium),
+    titleSmall: f(base.titleSmall),
+    bodyLarge: f(base.bodyLarge),
+    bodyMedium: f(base.bodyMedium),
+    bodySmall: f(base.bodySmall),
+    labelLarge: f(base.labelLarge),
+    labelMedium: f(base.labelMedium),
+    labelSmall: f(base.labelSmall),
+  );
+}
+
 class PitchpoleApp extends StatefulWidget {
   const PitchpoleApp({super.key});
 
@@ -102,8 +137,12 @@ class _PitchpoleAppState extends State<PitchpoleApp> {
     return MaterialApp(
       title: 'Pitchpole',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
+      theme: _withLettering(ThemeData(
         useMaterial3: true,
+        // The lettering, and only the lettering. Every TextStyle in the app
+        // leaves the family unset, so naming it here changes the face of the
+        // whole shell without touching a colour, a size or a layout.
+        fontFamily: 'LuckiestGuy',
         brightness: Brightness.dark,
         scaffoldBackgroundColor: Palette.background,
         colorScheme: ColorScheme.fromSeed(
@@ -112,7 +151,7 @@ class _PitchpoleAppState extends State<PitchpoleApp> {
           surface: Palette.surface,
         ),
         splashFactory: InkRipple.splashFactory,
-      ),
+      )),
       // Every screen, not just the ones with a grid on them: the bars can
       // come back over any of them, and a page that reflows underneath a bar
       // that is about to vanish again is never what was wanted.

@@ -45,6 +45,12 @@ class BubbleText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The painter is given the style the [Text] will actually be drawn in,
+    // not the one handed to this widget. A TextStyle here names no font
+    // family, so the Text picks the app's up from the theme while a painter
+    // handed the raw style falls back to the platform default — and the
+    // keyline would be set in a different face from the fill it sits behind.
+    final resolved = DefaultTextStyle.of(context).style.merge(style);
     final label = Text(text, style: style, textAlign: textAlign);
     final fill = gradient == null
         ? label
@@ -58,7 +64,7 @@ class BubbleText extends StatelessWidget {
     return CustomPaint(
       painter: _KeylinePainter(
         text: text,
-        style: style,
+        style: resolved,
         width: keyline,
         shadow: shadow,
         align: textAlign,

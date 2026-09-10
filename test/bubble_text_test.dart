@@ -62,6 +62,36 @@ void main() {
         reason: 'a stretched column hands the heading the full width');
   });
 
+  testWidgets('the keyline is set in the same face as the fill',
+      (tester) async {
+    // Both halves of the heading are drawn from a TextStyle that names no
+    // font family: the Text picks the app's up from the theme, and a painter
+    // handed the raw style would fall back to the platform default. Set in
+    // two different faces the outline no longer fits the letters it is
+    // behind, which is the same coming-apart the alignment bug caused.
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(fontFamily: 'LuckiestGuy'),
+        home: const Scaffold(
+          body: Center(
+            child: BubbleText(text: 'CLEARED', style: style, keyline: 8),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final painter = tester.widget<CustomPaint>(
+      find.ancestor(of: find.text('CLEARED'), matching: find.byType(CustomPaint)).first,
+    );
+    expect(painter.painter.toString(), contains('_KeylinePainter'));
+    expect(
+      DefaultTextStyle.of(tester.element(find.text('CLEARED'))).style.fontFamily,
+      'LuckiestGuy',
+      reason: 'the fill inherits the app face, so the keyline must too',
+    );
+  });
+
   testWidgets('it renders with and without a gradient', (tester) async {
     for (final gradient in [
       null,
