@@ -12,6 +12,32 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 /// this mode for as long as that lasts. See [_releaseScreen].
 const SystemUiMode kGameUiMode = SystemUiMode.immersiveSticky;
 
+/// The handsets the game is developed on.
+///
+/// A device on this list is served Google's test inventory whatever unit is
+/// asked for, and that does two things at once.
+///
+/// It makes testing safe. Impressions and clicks from a developer's own phone
+/// count against the account, and testing on live units is the single most
+/// common way an AdMob account is suspended for invalid traffic. [kDebugMode]
+/// already covers that for debug builds, which never touch a real unit — but
+/// the game is a fixed timestep runner that is judged on how it feels, so it
+/// is tested in release builds, and those go straight to the real ones.
+///
+/// And it makes testing possible. A phone that has asked a live unit for an
+/// ad thirty times in an afternoon is answered with `NO_FILL`, so the banner
+/// stops appearing and the app looks broken when nothing is wrong with it.
+/// Test inventory always fills.
+///
+/// An id here matches one handset and nothing else, so shipping the list
+/// costs a player nothing. To add a phone, read the id out of logcat: the SDK
+/// prints `Use RequestConfiguration.Builder().setTestDeviceIds(...)` with it
+/// on the first request of every run.
+const List<String> kTestDeviceIds = <String>[
+  // Realme RMX5070.
+  'D3DD69EB3840C7FD15C28C05F93E6AAB',
+];
+
 /// The ad unit ids, real and test.
 ///
 /// **A debug build never touches a real unit.** Google counts impressions and
@@ -185,6 +211,10 @@ class AdsController extends ChangeNotifier {
     if (_initialised || !isSupported) return;
     _initialised = true;
     try {
+      // Before initialize, which is where the SDK reads it.
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(testDeviceIds: kTestDeviceIds),
+      );
       await MobileAds.instance.initialize();
       preload();
       preloadRewarded();

@@ -316,6 +316,32 @@ void main() {
       await pump(tester, const HomeScreen());
       expect(tester.getSize(find.byType(AdBanner)).height, 0);
     });
+
+    testWidgets('nothing a page paints escapes the inset', (tester) async {
+      // Padding gives a child a smaller box; it does not stop it painting
+      // outside one. The home scene's clouds drift past the edge of its
+      // canvas and did exactly that, carrying on over the inset and sitting
+      // on the black, which makes the setting look broken rather than
+      // deliberate. So the shell clips, for every page rather than only the
+      // one that was caught at it.
+      await progressStore.setEdgeInset(20);
+      addTearDown(() => progressStore.setEdgeInset(0));
+
+      await pump(tester, const HomeScreen());
+
+      final clip = find
+          .ancestor(
+            of: find.byType(HomeScreen),
+            matching: find.byType(ClipRect),
+          )
+          .first;
+      final box = tester.getRect(clip);
+      expect(box.left, 20);
+      expect(box.top, 20);
+      final width =
+          tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      expect(box.right, width - 20);
+    });
   });
 
   testWidgets('a level opens straight into the run, never onto an ad',

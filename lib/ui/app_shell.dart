@@ -33,7 +33,14 @@ Widget appShell(BuildContext context, Widget? child) {
             animation: progressStore,
             builder: (context, page) => Padding(
               padding: EdgeInsets.all(progressStore.edgeInset),
-              child: page,
+              // Padding gives a child a smaller box; it does not stop it
+              // painting outside one. The home scene does exactly that — its
+              // clouds drift past the edge of the canvas — so without this
+              // they carried on over the inset and sat on the black, which
+              // makes the setting look broken rather than deliberate. Clipped
+              // here rather than in the scene, so it holds for every screen
+              // and for whatever is drawn on one later.
+              child: ClipRect(child: page),
             ),
             child: child ?? const SizedBox.shrink(),
           ),
