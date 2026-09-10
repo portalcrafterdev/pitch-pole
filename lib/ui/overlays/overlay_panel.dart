@@ -373,6 +373,7 @@ class PanelButton extends StatefulWidget {
     this.sublabel,
     this.trailing,
     this.hero = false,
+    this.rimmed = true,
   });
 
   final String label;
@@ -394,6 +395,14 @@ class PanelButton extends StatefulWidget {
   /// the eye lands on it before anything else. Only one button on a screen
   /// should ever set this.
   final bool hero;
+
+  /// The white rim around the slab.
+  ///
+  /// It exists to separate a slab from whatever it is standing on, which is
+  /// the job on a panel: a white button on a white card would otherwise have
+  /// no edge at all. The two on the home screen stand on the sky and the
+  /// hills, where the colour already does that, so they go without.
+  final bool rimmed;
 
   /// Shorter, for a landscape phone where the whole page has to fit in about
   /// 340 points of height.
@@ -514,10 +523,9 @@ class _PanelButtonState extends State<PanelButton>
             // A full white rim rather than a translucent one. It is what
             // separates the slab from whatever it is standing on, and at 45%
             // over a bright sky there was nothing there to see.
-            border: Border.all(
-              color: widget.filled ? Colors.white : Colors.white,
-              width: 3,
-            ),
+            border: widget.rimmed
+                ? Border.all(color: Colors.white, width: 3)
+                : null,
             boxShadow: [
               // Hard edged rather than blurred: this is a moulded edge, not a
               // shadow, and a blur would read as the button floating.

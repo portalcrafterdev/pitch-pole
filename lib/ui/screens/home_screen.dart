@@ -116,6 +116,7 @@ class HomeScreen extends StatelessWidget {
                                                 icon: Icons.play_arrow_rounded,
                                                 filled: true,
                                                 hero: true,
+                                                rimmed: false,
                                                 accent: MenuPalette.play,
                                                 compact: compact,
                                                 onPressed: () => _openLevel(
@@ -138,6 +139,7 @@ class HomeScreen extends StatelessWidget {
                                                 icon: Icons.grid_view_rounded,
                                                 filled: true,
                                                 hero: true,
+                                                rimmed: false,
                                                 accent: MenuPalette.levels,
                                                 compact: compact,
                                                 onPressed: () =>
@@ -175,7 +177,10 @@ class HomeScreen extends StatelessWidget {
                       // be a slab in the middle of the page; it is an account,
                       // not an action, and it belongs up here with settings.
                       Positioned(
-                        top: 2,
+                        // Off the top edge rather than hard against it. The
+                        // rim used to hold them clear; without it they sat on
+                        // the very edge of the sky with nothing above them.
+                        top: 12,
                         right: 12,
                         // One builder over the whole row, because two of
                         // the four tiles come and go with the account.
@@ -509,7 +514,9 @@ class _IconTile extends StatelessWidget {
                 colors: [Color(0xFFF6FAFC), Color(0xFFCBDCE6)],
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white, width: 3),
+              // No white rim. These stand on the sky, where the colour
+              // already separates them from what is behind — the same reason
+              // the two slabs under them go without one.
               boxShadow: const [
                 BoxShadow(color: Color(0xFFA8BFCC), offset: Offset(0, 4)),
               ],
