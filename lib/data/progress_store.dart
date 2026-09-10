@@ -67,6 +67,14 @@ const double kPadTopMargin = 10;
 /// is one that covers a good part of a landscape phone, which is a fair thing
 /// to want if you are playing with the phone flat on a table. Neither end is
 /// a judgement about what plays well — that is the player's to make.
+/// The furthest in the player may pull the screen's edges.
+///
+/// Forty points is about a tenth of a landscape phone's height. Past that the
+/// play field is being shrunk rather than kept clear of a bezel, and section 10
+/// is firm that everyone sees the same distance ahead — the letterbox scales
+/// the field down, so a huge inset costs the player nothing but reading room.
+const double kMaxEdgeInset = 40;
+
 const double kMinPadScale = 0.6;
 const double kMaxPadScale = 1.8;
 
@@ -109,6 +117,7 @@ class ProgressStore extends ChangeNotifier {
   static const String _controlsKey = 'settings.controls';
   static const String _padPrefix = 'settings.pad.';
   static const String _sceneryKey = 'settings.scenery';
+  static const String _edgeInsetKey = 'settings.edgeInset';
 
   SharedPreferences? _prefs;
   final Map<int, int> _stars = {};
@@ -147,6 +156,8 @@ class ProgressStore extends ChangeNotifier {
   /// decide. Null is the default: see [SceneTheme.resolve].
   String? _scenery;
 
+  double _edgeInset = 0;
+
   /// Only the pads the player has actually moved or resized. A pad missing
   /// from these sits at its [ControlPad.home] at its [ControlPad.size], so the
   /// defaults can be changed later without having to migrate anybody's saved
@@ -163,6 +174,15 @@ class ProgressStore extends ChangeNotifier {
 
   /// Null means the scenery follows the level, changing every ten of them.
   String? get sceneryChoice => _scenery;
+
+  /// How far in from the edges of the screen the game is held, in points.
+  ///
+  /// Zero on every phone that reports its cutouts and gesture areas honestly,
+  /// which is most of them. It exists for the ones that do not: a curved
+  /// corner that clips a level tile, a camera hole the system does not declare,
+  /// a launcher bar that sits over the progress bar. None of that can be
+  /// detected from inside the app, so it is the player's to set.
+  double get edgeInset => _edgeInset;
 
   /// Where a pad sits, as a fraction of the screen.
   Offset padSpot(ControlPad pad) => _padSpots[pad] ?? pad.home;
@@ -216,6 +236,7 @@ class ProgressStore extends ChangeNotifier {
     _musicVolume = (prefs.getDouble(_musicVolumeKey) ?? 1).clamp(0.0, 1.0);
     _controls = ControlScheme.fromName(prefs.getString(_controlsKey));
     _scenery = prefs.getString(_sceneryKey);
+    _edgeInset = (prefs.getDouble(_edgeInsetKey) ?? 0).clamp(0.0, kMaxEdgeInset);
 
     _padSpots.clear();
     _padScales.clear();
@@ -420,6 +441,15 @@ class ProgressStore extends ChangeNotifier {
     _musicVolume = level;
     notifyListeners();
     await _prefs?.setDouble(_musicVolumeKey, level);
+  }
+
+  /// Holds the whole app that far in from the edges of the screen.
+  Future<void> setEdgeInset(double points) async {
+    final held = points.clamp(0.0, kMaxEdgeInset);
+    if (_edgeInset == held) return;
+    _edgeInset = held;
+    notifyListeners();
+    await _prefs?.setDouble(_edgeInsetKey, held);
   }
 
   /// Pins the scenery to one place, or hands it back to the level with null.

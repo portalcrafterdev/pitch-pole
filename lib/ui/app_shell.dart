@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/ads.dart';
+import '../data/progress_store.dart';
 import 'widgets/ad_banner.dart';
 import 'widgets/steady_insets.dart';
 
@@ -24,7 +25,19 @@ Widget appShell(BuildContext context, Widget? child) {
   return SteadyInsets(
     child: Column(
       children: [
-        Expanded(child: child ?? const SizedBox.shrink()),
+        // The player's own edge inset, applied to the pages and not to the
+        // banner: a strip of ad floating in from the sides would look like a
+        // mistake, and it is the game being clipped that this exists to fix.
+        Expanded(
+          child: AnimatedBuilder(
+            animation: progressStore,
+            builder: (context, page) => Padding(
+              padding: EdgeInsets.all(progressStore.edgeInset),
+              child: page,
+            ),
+            child: child ?? const SizedBox.shrink(),
+          ),
+        ),
         // Zero height while a run is on, and zero height until an ad has
         // loaded, so the pages below run to the bottom edge either way.
         AnimatedBuilder(

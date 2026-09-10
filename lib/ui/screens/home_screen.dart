@@ -284,77 +284,92 @@ class HomeScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: MenuPalette.card,
-      // A landscape phone is about 360 points tall, and the default sheet is
-      // capped at just over half of that, which shows two and a half rows.
       isScrollControlled: true,
+      // Seven tenths of the screen, and the last three are the way out.
+      //
+      // It was 92%, which is where a sheet ends up when it is sized to hold
+      // everything at once. What that cost was the barrier: the strip of game
+      // left showing behind it was a few points at the very top of a
+      // landscape phone, so the ordinary way of leaving a modal sheet —
+      // tapping the screen behind it — had nothing left to aim at. A hundred
+      // points of it gives that back, and the rows that no longer fit are one
+      // scroll away rather than lost.
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.92,
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
+      // Both are the default. They are named because this sheet depends on
+      // them: they are what makes the half screen behind it a way out.
+      isDismissible: true,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) => AnimatedBuilder(
         animation: progressStore,
         builder: (context, _) => SafeArea(
-          // Landscape leaves very little height, so the sheet scrolls.
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 10),
-                // A grab handle, because a sheet with no visible edge is a
-                // sheet a child does not know can be pushed away.
-                Container(
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: MenuPalette.inkSoft.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Outside the scroll view, and that is the whole point of the
+              // change. Inside it, a drag on the handle scrolled the settings
+              // rather than pushing the sheet away, and the sheet is nearly
+              // the height of a landscape phone, so the barrier behind it is
+              // a few points of screen nobody can aim at. That left the
+              // system back gesture as the only way out.
+              const _SheetHeader(),
+              // Landscape leaves very little height, so the rest scrolls.
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Two columns on a landscape phone. In one, the sheet ran a
+                      // long way past the fold, so haptics and Reset progress were
+                      // only findable by scrolling something that did not look
+                      // scrollable. Side by side it all fits at 360 points.
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final wide = constraints.maxWidth >= 560;
+                          final controls = _SettingsControlsColumn(context: context);
+                          const audio = _SettingsAudioColumn();
+                          if (!wide) {
+                            return const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _SettingsControlsColumn(),
+                                Divider(height: 24, indent: 16, endIndent: 16),
+                                _SettingsAudioColumn(),
+                              ],
+                            );
+                          }
+                          return IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: controls),
+                                const VerticalDivider(width: 24, indent: 8),
+                                const Expanded(child: audio),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 24, indent: 16, endIndent: 16),
+                      const _EdgePicker(),
+                      const Divider(height: 24, indent: 16, endIndent: 16),
+                      // Full width rather than in a column: it is a row of six
+                      // swatches, and six of anything does not fit in half a
+                      // landscape phone.
+                      const _SceneryPicker(),
+                      const SizedBox(height: 8),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                // Two columns on a landscape phone. In one, the sheet ran a
-                // long way past the fold, so haptics and Reset progress were
-                // only findable by scrolling something that did not look
-                // scrollable. Side by side it all fits at 360 points.
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final wide = constraints.maxWidth >= 560;
-                    final controls = _SettingsControlsColumn(context: context);
-                    const audio = _SettingsAudioColumn();
-                    if (!wide) {
-                      return const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _SettingsControlsColumn(),
-                          Divider(height: 24, indent: 16, endIndent: 16),
-                          _SettingsAudioColumn(),
-                        ],
-                      );
-                    }
-                    return IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: controls),
-                          const VerticalDivider(width: 24, indent: 8),
-                          const Expanded(child: audio),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 24, indent: 16, endIndent: 16),
-                // Full width rather than in a column: it is a row of six
-                // swatches, and six of anything does not fit in half a
-                // landscape phone.
-                const _SceneryPicker(),
-                const SizedBox(height: 8),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -840,6 +855,59 @@ class _BubbleTitle extends StatelessWidget {
   );
 }
 
+/// The strip along the top of the settings sheet: the grab handle, and the
+/// way out.
+///
+/// The button is not decoration. A modal sheet is normally left by tapping
+/// the screen behind it or by dragging it down, and on this one neither
+/// works: the sheet is 92% of a landscape phone, so what is behind it is a
+/// sliver at the top, and the handle sat inside a scroll view that answered
+/// the drag first. So the sheet is now a header the sheet itself can be
+/// dragged by, over a scroll view holding everything else, with a target
+/// that closes it outright.
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
+      child: Row(
+        children: [
+          // Balances the button, so the handle sits in the middle of the
+          // sheet rather than in the middle of what is left of it.
+          const SizedBox(width: 40),
+          Expanded(
+            child: Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: MenuPalette.inkSoft.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+          ),
+          Pressable(
+            onPressed: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(20),
+            child: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(
+                Icons.close_rounded,
+                size: 24,
+                color: MenuPalette.inkSoft,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SettingsHeading extends StatelessWidget {
   const _SettingsHeading(this.label);
 
@@ -887,6 +955,79 @@ class _SettingsNote extends StatelessWidget {
 
 /// The two touch schemes, as an either or. Picking one turns the other off,
 /// which is the point: they must never both be live.
+/// How far in from the edges of the screen the game is held.
+///
+/// Zero on every phone that reports its cutouts and gesture areas honestly,
+/// which is most of them. This is for the ones that do not: a curved corner
+/// clipping a level tile, a camera hole the system never declared, a launcher
+/// bar sitting over the progress bar. None of that can be seen from inside
+/// the app, so the player is the only one who can say.
+class _EdgePicker extends StatelessWidget {
+  const _EdgePicker();
+
+  @override
+  Widget build(BuildContext context) {
+    // Listens to the store itself, for the same reason the other two pickers
+    // do: built as a const, an ancestor rebuilding skips the subtree and the
+    // slider sits wherever it was when the sheet opened.
+    return AnimatedBuilder(
+      animation: progressStore,
+      builder: (context, _) => _rows(),
+    );
+  }
+
+  Widget _rows() {
+    final inset = progressStore.edgeInset;
+    final points = inset.round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SettingsHeading('SCREEN EDGES'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.fullscreen_rounded,
+                color: MenuPalette.levels,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Slider(
+                  value: inset,
+                  max: kMaxEdgeInset,
+                  divisions: kMaxEdgeInset.round(),
+                  activeColor: MenuPalette.levels,
+                  onChanged: progressStore.setEdgeInset,
+                ),
+              ),
+              SizedBox(
+                width: 34,
+                child: Text(
+                  points.toString(),
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    color: MenuPalette.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        _SettingsNote(
+          inset == 0
+              ? 'Right up to the edges of the screen'
+              : 'Held $points points in, all the way round',
+        ),
+      ],
+    );
+  }
+}
+
 /// Which of the five places every level is set in, or none of them.
 ///
 /// The scenery normally changes every ten levels, which is how getting

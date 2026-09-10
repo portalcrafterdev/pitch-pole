@@ -3,11 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/logic/run_state.dart';
 import 'package:pitchpole/ui/overlays/pause_menu.dart';
+import 'package:pitchpole/ui/screens/home_screen.dart';
 import 'package:pitchpole/ui/widgets/pressable.dart';
 import 'package:pitchpole/ui/widgets/touch_controls.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  // The two plain tests below reach shared_preferences, and its mock needs a
+  // binding. testWidgets puts one up on its own; a plain test does not, and
+  // whichever runs first would otherwise decide whether they pass.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   Future<List<RunInput>> mount(
     WidgetTester tester, {
     required ControlScheme scheme,
@@ -126,6 +132,39 @@ void main() {
       await tester.tap(find.byType(Pressable));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+    });
+
+    // A plain test, not a widget one: [ProgressStore.load] awaits a platform
+    // channel, and inside testWidgets' fake async that future never completes.
+    test('the screen edge inset is kept, clamped and reloaded', () async {
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+      // For the phones that do not report a cutout or a gesture bar honestly:
+      // a curved corner clipping a tile, a camera hole nobody declared. None
+      // of it is visible from inside the app, so the player sets it — and it
+      // has to survive being closed, like every other setting.
+      await progressStore.setEdgeInset(18);
+      expect(progressStore.edgeInset, 18);
+
+      await progressStore.setEdgeInset(500);
+      expect(progressStore.edgeInset, kMaxEdgeInset,
+          reason: 'past forty the play field is being shrunk, not kept clear');
+
+      await progressStore.setEdgeInset(-5);
+      expect(progressStore.edgeInset, 0);
+
+      await progressStore.setEdgeInset(22);
+      await progressStore.load();
+      expect(progressStore.edgeInset, 22);
+    });
+
+    test('the edge inset does not travel to another phone', () async {
+      SharedPreferences.setMockInitialValues({});
+      await progressStore.load();
+      // Section 15: how loud a phone is and how it is driven are facts about
+      // that phone. So is the shape of its screen.
+      await progressStore.setEdgeInset(16);
+      expect(progressStore.toSnapshot().toString(), isNot(contains('edgeInset')));
     });
 
     testWidgets('there are no buttons to miss', (tester) async {
@@ -512,5 +551,51 @@ void main() {
     expect(ControlScheme.fromName(null), ControlScheme.halves);
     expect(ControlScheme.fromName('nonsense'), ControlScheme.halves);
     expect(ControlScheme.fromName('buttons'), ControlScheme.buttons);
+  });
+
+  testWidgets('the settings sheet can be closed without the back gesture',
+      (tester) async {
+    // The sheet is 92% of a landscape phone, so what is behind it is a sliver
+    // nobody can aim at, and the handle sat inside a scroll view that
+    // answered the drag first. Both of the usual ways out of a modal sheet
+    // were gone, which left only the system back gesture.
+    tester.view.physicalSize = const Size(732, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pump();
+
+    await tester.tap(find.text('SETTINGS'));
+    await tester.pumpAndSettle();
+    expect(find.text('TOUCH CONTROLS'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('TOUCH CONTROLS'), findsNothing);
+  });
+
+  testWidgets('the settings sheet leaves a strip of screen to tap away on',
+      (tester) async {
+    tester.view.physicalSize = const Size(732, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pump();
+
+    await tester.tap(find.text('SETTINGS'));
+    await tester.pumpAndSettle();
+    expect(find.text('TOUCH CONTROLS'), findsOneWidget);
+
+    // Seven tenths of a 360 point landscape phone. The rows that do not fit
+    // are a scroll away; the hundred points above the sheet are what a player
+    // aims at to leave it, and at 92% there was nothing there to aim at.
+    expect(tester.getSize(find.byType(BottomSheet)).height,
+        lessThanOrEqualTo(252.0));
+
+    await tester.tapAt(const Offset(366, 20));
+    await tester.pumpAndSettle();
+    expect(find.text('TOUCH CONTROLS'), findsNothing);
   });
 }
