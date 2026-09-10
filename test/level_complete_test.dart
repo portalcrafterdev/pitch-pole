@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitchpole/data/ads.dart';
 import 'package:pitchpole/ui/overlays/level_complete.dart';
+import 'package:pitchpole/ui/widgets/confetti_fall.dart';
 import 'package:pitchpole/ui/overlays/overlay_panel.dart';
 import 'package:pitchpole/ui/widgets/star_row.dart';
 
@@ -65,6 +67,29 @@ void main() {
     expect(find.text('RUN IT CLEAN'), findsOneWidget);
     expect(find.text('LEVELS'), findsOneWidget);
     expect(find.text('HOME'), findsOneWidget);
+  });
+
+  testWidgets('the celebration waits for the ad to get off the screen',
+      (tester) async {
+    // The break now lands on a clear, so it opens over the top of this panel.
+    // The stars pop in one at a time and the confetti falls once, and both
+    // used to start the moment the panel was built — so the whole celebration
+    // played behind the ad and the player dismissed it onto three stars
+    // already sitting still.
+    adsController.debugShowingAd = true;
+    addTearDown(() => adsController.debugShowingAd = false);
+
+    await pumpPanel(tester, stars: 3, livesLost: 0);
+    expect(find.byType(ConfettiFall), findsNothing,
+        reason: 'nothing celebrates while an ad is covering the screen');
+    expect(tester.widget<StarRow>(find.byType(StarRow)).animate, isFalse);
+
+    adsController.debugShowingAd = false;
+    await tester.pump();
+
+    expect(find.byType(ConfettiFall), findsOneWidget);
+    expect(tester.widget<StarRow>(find.byType(StarRow)).animate, isTrue,
+        reason: 'and it all starts the moment the screen is theirs again');
   });
 
   testWidgets('home is offered on every run, however it went', (tester) async {

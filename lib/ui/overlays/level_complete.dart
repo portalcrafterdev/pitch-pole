@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/ads.dart';
 import '../chapters.dart';
 import '../menu_palette.dart';
 import '../widgets/confetti_fall.dart';
@@ -49,6 +50,18 @@ class LevelComplete extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Held until the break is out of the way. The stars pop in one at a time
+    // and the confetti falls once, and both used to start the moment this was
+    // built — which is the same moment the ad opens over the top of it. The
+    // whole celebration played behind the ad, and dismissing it landed the
+    // player on three stars already sitting still.
+    return AnimatedBuilder(
+      animation: adsController,
+      builder: (context, _) => _panel(context, !adsController.isShowingAd),
+    );
+  }
+
+  Widget _panel(BuildContext context, bool celebrate) {
     final isBest = bestSeconds == null || seconds < bestSeconds!;
     return Stack(
       children: [
@@ -108,7 +121,7 @@ class LevelComplete extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              StarRow(stars: stars, size: 44, animate: true, keyline: true),
+              StarRow(stars: stars, size: 44, animate: celebrate, keyline: true),
               const SizedBox(height: 12),
               _RunStrip(
                 seconds: seconds,
@@ -123,7 +136,7 @@ class LevelComplete extends StatelessWidget {
         ),
         // Falls in front of the panel, but it is over in a couple of seconds
         // and never eats a tap.
-        const Positioned.fill(child: ConfettiFall()),
+        if (celebrate) const Positioned.fill(child: ConfettiFall()),
       ],
     );
   }

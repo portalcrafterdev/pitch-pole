@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/menu_audio.dart';
 import '../menu_palette.dart';
 import '../widgets/bubble_text.dart';
+import '../widgets/tap_ring.dart';
 import '../palette.dart';
 
 /// Below this, the screen is a landscape phone and height is the scarce thing.
@@ -138,9 +139,7 @@ class OverlayPanel extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: twoColumn
-                        ? _twoColumn(short)
-                        : _oneColumn(short),
+                    child: twoColumn ? _twoColumn(short) : _oneColumn(short),
                   ),
                 ),
               ),
@@ -168,10 +167,7 @@ class OverlayPanel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         ..._heading(short, center: true),
-        if (child != null) ...[
-          SizedBox(height: short ? 12 : 20),
-          child!,
-        ],
+        if (child != null) ...[SizedBox(height: short ? 12 : 20), child!],
         SizedBox(height: short ? 14 : 24),
         ..._spacedActions(short),
       ],
@@ -188,10 +184,7 @@ class OverlayPanel extends StatelessWidget {
   List<Widget> _spacedActions(bool short) {
     final gap = SizedBox(height: short ? 6 : 8);
     return [
-      for (var i = 0; i < actions.length; i++) ...[
-        if (i > 0) gap,
-        actions[i],
-      ],
+      for (var i = 0; i < actions.length; i++) ...[if (i > 0) gap, actions[i]],
     ];
   }
 
@@ -210,14 +203,12 @@ class OverlayPanel extends StatelessWidget {
             // a tall white space. Centred, it lines up with the buttons
             // instead. Panels that do have a body keep their heading at the
             // top, where it belongs.
-            mainAxisAlignment:
-                child == null ? MainAxisAlignment.center : MainAxisAlignment.start,
+            mainAxisAlignment: child == null
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
             children: [
               ..._heading(short, center: centerContent),
-              if (child != null) ...[
-                SizedBox(height: short ? 12 : 18),
-                child!,
-              ],
+              if (child != null) ...[SizedBox(height: short ? 12 : 18), child!],
             ],
           ),
         ),
@@ -349,25 +340,25 @@ Color _lighten(Color c, double amount) {
 /// what it did to the trophy and star counts when it was inherited by every
 /// style in the app instead of asked for here.
 List<Shadow> keylineShadows(double width) => [
-      for (final at in const [
-        Offset(1, 0),
-        Offset(-1, 0),
-        Offset(0, 1),
-        Offset(0, -1),
-        Offset(0.7, 0.7),
-        Offset(-0.7, 0.7),
-        Offset(0.7, -0.7),
-        Offset(-0.7, -0.7),
-      ])
-        Shadow(
-          color: MenuPalette.ink,
-          offset: Offset(at.dx * width, at.dy * width),
-        ),
-      Shadow(
-        color: MenuPalette.ink.withValues(alpha: 0.34),
-        offset: Offset(0, width * 1.8),
-      ),
-    ];
+  for (final at in const [
+    Offset(1, 0),
+    Offset(-1, 0),
+    Offset(0, 1),
+    Offset(0, -1),
+    Offset(0.7, 0.7),
+    Offset(-0.7, 0.7),
+    Offset(0.7, -0.7),
+    Offset(-0.7, -0.7),
+  ])
+    Shadow(
+      color: MenuPalette.ink,
+      offset: Offset(at.dx * width, at.dy * width),
+    ),
+  Shadow(
+    color: MenuPalette.ink.withValues(alpha: 0.34),
+    offset: Offset(0, width * 1.8),
+  ),
+];
 
 class PanelButton extends StatefulWidget {
   const PanelButton({
@@ -420,8 +411,23 @@ class PanelButton extends StatefulWidget {
   State<PanelButton> createState() => _PanelButtonState();
 }
 
-class _PanelButtonState extends State<PanelButton> {
+class _PanelButtonState extends State<PanelButton>
+    with SingleTickerProviderStateMixin {
   bool _down = false;
+
+  /// Where the last press landed, and how far its ring has opened. The lip
+  /// sinking says the slab took the press; the ring says where the thumb was.
+  Offset? _at;
+  late final AnimationController _ring = AnimationController(
+    vsync: this,
+    duration: kTapRingDuration,
+  );
+
+  @override
+  void dispose() {
+    _ring.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -465,8 +471,8 @@ class _PanelButtonState extends State<PanelButton> {
     final height = widget.hero
         ? (compact ? 56.0 : 66.0)
         : tall
-            ? (compact ? 54.0 : 62.0)
-            : (compact ? 44.0 : 52.0);
+        ? (compact ? 54.0 : 62.0)
+        : (compact ? 44.0 : 52.0);
     // Scaled with the button rather than fixed, so a tall slab is a pill and
     // a short one is still a rounded rectangle instead of both being the same
     // corner on different heights.
@@ -478,7 +484,9 @@ class _PanelButtonState extends State<PanelButton> {
         // Opaque, so the gap between the icon and the label is still the
         // button. A small target with holes in it is a small target.
         behavior: HitTestBehavior.opaque,
-        onTapDown: (_) {
+        onTapDown: (details) {
+          _at = details.localPosition;
+          _ring.forward(from: 0);
           // On the press rather than on the release, so the sound lands with
           // the button going down. A blip that waits for the finger to lift
           // reads as a delay rather than as feedback.
@@ -530,6 +538,29 @@ class _PanelButtonState extends State<PanelButton> {
           child: Stack(
             alignment: Alignment.center,
             children: [
+              // The ring out of the thumb, clipped to the slab so it never
+              // throws a square of colour past the corners, and behind an
+              // [IgnorePointer] so it cannot swallow the press after it.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(radius),
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _ring,
+                        builder: (context, _) => CustomPaint(
+                          painter: TapRingPainter(
+                            at: _at,
+                            progress: _ring.value,
+                            colour: Colors.white,
+                            radius: height,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               // The highlight. A rounded band across the top third, fading
               // out: the single cheapest thing that turns a flat rectangle
               // into something moulded.
@@ -545,7 +576,9 @@ class _PanelButtonState extends State<PanelButton> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.white.withValues(alpha: widget.filled ? 0.34 : 0.55),
+                        Colors.white.withValues(
+                          alpha: widget.filled ? 0.34 : 0.55,
+                        ),
                         Colors.white.withValues(alpha: 0),
                       ],
                     ),
@@ -553,13 +586,16 @@ class _PanelButtonState extends State<PanelButton> {
                 ),
               ),
               Row(
-                mainAxisAlignment:
-                    tall ? MainAxisAlignment.start : MainAxisAlignment.center,
+                mainAxisAlignment: tall
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
                 children: [
                   if (widget.icon != null) ...[
-                    Icon(widget.icon,
-                        size: widget.hero ? 30 : (tall ? 26 : 22),
-                        color: onFill),
+                    Icon(
+                      widget.icon,
+                      size: widget.hero ? 30 : (tall ? 26 : 22),
+                      color: onFill,
+                    ),
                     const SizedBox(width: 10),
                   ],
                   // Shrunk to fit rather than clipped or ellipsed. A label

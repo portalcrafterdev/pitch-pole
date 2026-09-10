@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../data/progress_store.dart';
 import '../../game/logic/run_state.dart';
 import '../palette.dart';
+import 'tap_ring.dart';
 
 /// Touch input, in whichever of the two schemes the player picked.
 ///
@@ -120,12 +121,38 @@ class _Half extends StatefulWidget {
   State<_Half> createState() => _HalfState();
 }
 
-class _HalfState extends State<_Half> {
+class _HalfState extends State<_Half>
+    with SingleTickerProviderStateMixin {
   double _flash = 0;
 
-  void _tap() {
+  /// Where the last tap landed, and how far its ring has opened.
+  ///
+  /// The wash tells the player *which half* they hit, which is worth keeping;
+  /// it cannot tell them *where*. On a screen with no buttons on it, a tap
+  /// that leaves no mark at the finger is the one moment the game gives no
+  /// answer at all — and a missed input and an ignored one look identical.
+  Offset? _at;
+  late final AnimationController _ring = AnimationController(
+    vsync: this,
+    duration: kTapRingDuration,
+  );
+
+  @override
+  void dispose() {
+    _ring.dispose();
+    super.dispose();
+  }
+
+  void _tap(TapDownDetails details) {
     widget.onTap?.call();
     if (widget.onTap == null) return;
+
+    // Restarted rather than queued. Taps come faster than the ring closes and
+    // a run of them must not stack up work behind the simulation, so the
+    // newest finger is the only one drawn.
+    _at = details.localPosition;
+    _ring.forward(from: 0);
+
     setState(() => _flash = 1);
     Future<void>.delayed(const Duration(milliseconds: 140), () {
       if (mounted) setState(() => _flash = 0);
@@ -136,42 +163,68 @@ class _HalfState extends State<_Half> {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _tap(),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        color: widget.accent.withValues(alpha: 0.10 * _flash),
-        child: widget.showHint
-            // Low in the frame, over the earth below the floor line rather
-            // than across the band. A label in the middle of the play area
-            // competes with the obstacles the player is meant to be reading.
-            ? Align(
-                alignment: const Alignment(0, 0.78),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      widget.icon,
-                      size: 24,
-                      color: widget.accent.withValues(alpha: 0.30),
+      onTapDown: _tap,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            color: widget.accent.withValues(alpha: 0.10 * _flash),
+            child: widget.showHint
+                // Low in the frame, over the earth below the floor line rather
+                // than across the band. A label in the middle of the play area
+                // competes with the obstacles the player is meant to be
+                // reading.
+                ? Align(
+                    alignment: const Alignment(0, 0.78),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          widget.icon,
+                          size: 24,
+                          color: widget.accent.withValues(alpha: 0.30),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.label,
+                          style: TextStyle(
+                            color: widget.accent.withValues(alpha: 0.30),
+                            fontSize: 11,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.label,
-                      style: TextStyle(
-                        color: widget.accent.withValues(alpha: 0.30),
-                        fontSize: 11,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                  )
+                : const SizedBox.expand(),
+          ),
+          // Behind an [IgnorePointer] and its own repaint boundary: every
+          // touch in a level is an input, so the thing drawn to acknowledge
+          // one must never be able to swallow the next, and a ring opening at
+          // sixty frames a second must not drag the play field into its
+          // repaints.
+          IgnorePointer(
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _ring,
+                builder: (context, _) => CustomPaint(
+                  painter: TapRingPainter(
+                    at: _at,
+                    progress: _ring.value,
+                    colour: widget.accent,
+                  ),
                 ),
-              )
-            : const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
 
 /// Three pads, wherever the player has put them. Up and down on the left and
 /// jump on the right to begin with, but none of that is fixed: each pad is

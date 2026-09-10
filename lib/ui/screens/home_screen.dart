@@ -15,6 +15,7 @@ import '../overlays/overlay_panel.dart';
 import '../palette.dart';
 import '../widgets/bubble_text.dart';
 import '../widgets/home_backdrop.dart';
+import '../widgets/pressable.dart';
 import '../widgets/sign_in_button.dart';
 import '../widgets/volume_row.dart';
 import 'control_layout_screen.dart';
@@ -66,6 +67,9 @@ class HomeScreen extends StatelessWidget {
                         builder: (context, constraints) {
                           final compact = constraints.maxHeight < 420;
                           return SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
+                            ),
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
                                 minHeight: constraints.maxHeight,
@@ -106,16 +110,18 @@ class HomeScreen extends StatelessWidget {
                                               child: PanelButton(
                                                 label:
                                                     progressStore.solvedCount ==
-                                                            0
-                                                        ? 'PLAY'
-                                                        : 'CONTINUE',
+                                                        0
+                                                    ? 'PLAY'
+                                                    : 'CONTINUE',
                                                 icon: Icons.play_arrow_rounded,
                                                 filled: true,
                                                 hero: true,
                                                 accent: MenuPalette.play,
                                                 compact: compact,
                                                 onPressed: () => _openLevel(
-                                                    context, levelCount),
+                                                  context,
+                                                  levelCount,
+                                                ),
                                               ),
                                             ),
                                             // On top of the lip the slab
@@ -136,10 +142,10 @@ class HomeScreen extends StatelessWidget {
                                                 compact: compact,
                                                 onPressed: () =>
                                                     _openAndResumeMusic(
-                                                  context,
-                                                  (_) =>
-                                                      const LevelSelectScreen(),
-                                                ),
+                                                      context,
+                                                      (_) =>
+                                                          const LevelSelectScreen(),
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -265,10 +271,7 @@ class HomeScreen extends StatelessWidget {
     if (opening == null || !context.mounted) return;
     _openAndResumeMusic(
       context,
-      (_) => GameScreen(
-        level: opening.level,
-        levelCount: opening.levelCount,
-      ),
+      (_) => GameScreen(level: opening.level, levelCount: opening.levelCount),
     );
   }
 
@@ -290,6 +293,9 @@ class HomeScreen extends StatelessWidget {
         builder: (context, _) => SafeArea(
           // Landscape leaves very little height, so the sheet scrolls.
           child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -370,10 +376,7 @@ class _SettingsControlsColumn extends StatelessWidget {
         const _ControlSchemePicker(),
         const SizedBox(height: 4),
         ListTile(
-          leading: const Icon(
-            Icons.restart_alt_rounded,
-            color: Palette.bolted,
-          ),
+          leading: const Icon(Icons.restart_alt_rounded, color: Palette.bolted),
           title: const Text(
             'Reset progress',
             style: TextStyle(
@@ -409,9 +412,9 @@ class _SettingsAudioColumn extends StatelessWidget {
   /// scheme picker below already had to solve.
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: progressStore,
-        builder: (context, _) => _rows(),
-      );
+    animation: progressStore,
+    builder: (context, _) => _rows(),
+  );
 
   Widget _rows() {
     return Column(
@@ -427,8 +430,7 @@ class _SettingsAudioColumn extends StatelessWidget {
             offIcon: Icons.volume_off_rounded,
             on: progressStore.soundEnabled,
             volume: progressStore.soundVolume,
-            onToggle: () =>
-                progressStore.setSound(!progressStore.soundEnabled),
+            onToggle: () => progressStore.setSound(!progressStore.soundEnabled),
             onChanged: progressStore.setSoundVolume,
           ),
         ),
@@ -443,8 +445,7 @@ class _SettingsAudioColumn extends StatelessWidget {
             offIcon: Icons.music_off_rounded,
             on: progressStore.musicEnabled,
             volume: progressStore.musicVolume,
-            onToggle: () =>
-                progressStore.setMusic(!progressStore.musicEnabled),
+            onToggle: () => progressStore.setMusic(!progressStore.musicEnabled),
             onChanged: progressStore.setMusicVolume,
           ),
         ),
@@ -492,52 +493,46 @@ class _IconTile extends StatelessWidget {
     // The label is inside the tap target, not under it. Left as a sibling it
     // looked like part of the button and was not, which is the kind of miss
     // nobody reports — they just think the button is broken.
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          MenuAudio.instance.tap();
-          onPressed();
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFF6FAFC), Color(0xFFCBDCE6)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white, width: 3),
-                boxShadow: const [
-                  BoxShadow(color: Color(0xFFA8BFCC), offset: Offset(0, 4)),
-                ],
+    return Pressable(
+      onPressed: onPressed,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFF6FAFC), Color(0xFFCBDCE6)],
               ),
-              alignment: Alignment.center,
-              child: child,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: const [
+                BoxShadow(color: Color(0xFFA8BFCC), offset: Offset(0, 4)),
+              ],
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: const TextStyle(
-                color: MenuPalette.ink,
-                fontSize: 9,
-                letterSpacing: 1,
-                fontWeight: FontWeight.w900,
-                shadows: [
-                  Shadow(color: Colors.white, offset: Offset(0, 1.5)),
-                  Shadow(color: Colors.white, offset: Offset(1.2, 0)),
-                  Shadow(color: Colors.white, offset: Offset(-1.2, 0)),
-                ],
-              ),
+            alignment: Alignment.center,
+            child: child,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: const TextStyle(
+              color: MenuPalette.ink,
+              fontSize: 9,
+              letterSpacing: 1,
+              fontWeight: FontWeight.w900,
+              shadows: [
+                Shadow(color: Colors.white, offset: Offset(0, 1.5)),
+                Shadow(color: Colors.white, offset: Offset(1.2, 0)),
+                Shadow(color: Colors.white, offset: Offset(-1.2, 0)),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -549,8 +544,11 @@ class _MascotFace extends StatelessWidget {
   const _MascotFace();
 
   @override
-  Widget build(BuildContext context) =>
-      const SizedBox(width: 26, height: 26, child: CustomPaint(painter: _FacePainter()));
+  Widget build(BuildContext context) => const SizedBox(
+    width: 26,
+    height: 26,
+    child: CustomPaint(painter: _FacePainter()),
+  );
 }
 
 class _FacePainter extends CustomPainter {
@@ -567,11 +565,7 @@ class _FacePainter extends CustomPainter {
       canvas.translate(side * s * 0.25, -s * 0.34);
       canvas.rotate(side * 0.5);
       canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset.zero,
-          width: s * 0.20,
-          height: s * 0.36,
-        ),
+        Rect.fromCenter(center: Offset.zero, width: s * 0.20, height: s * 0.36),
         dark,
       );
       canvas.restore();
@@ -579,7 +573,11 @@ class _FacePainter extends CustomPainter {
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(0, s * 0.06), width: s * 0.76, height: s * 0.72),
+        Rect.fromCenter(
+          center: Offset(0, s * 0.06),
+          width: s * 0.76,
+          height: s * 0.72,
+        ),
         Radius.circular(s * 0.26),
       ),
       Paint()..color = const Color(0xFF5AA6FA),
@@ -587,13 +585,24 @@ class _FacePainter extends CustomPainter {
 
     for (final side in [-1.0, 1.0]) {
       final centre = Offset(side * s * 0.16, -s * 0.02);
-      canvas.drawCircle(centre, s * 0.11, Paint()..color = const Color(0xFFFFFFFF));
-      canvas.drawCircle(centre + Offset(s * 0.02, 0), s * 0.055,
-          Paint()..color = const Color(0xFF12161F));
+      canvas.drawCircle(
+        centre,
+        s * 0.11,
+        Paint()..color = const Color(0xFFFFFFFF),
+      );
+      canvas.drawCircle(
+        centre + Offset(s * 0.02, 0),
+        s * 0.055,
+        Paint()..color = const Color(0xFF12161F),
+      );
     }
 
     canvas.drawArc(
-      Rect.fromCenter(center: Offset(0, s * 0.20), width: s * 0.26, height: s * 0.20),
+      Rect.fromCenter(
+        center: Offset(0, s * 0.20),
+        width: s * 0.26,
+        height: s * 0.20,
+      ),
       0.15,
       math.pi - 0.3,
       false,
@@ -716,10 +725,10 @@ class _StatRule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 2,
-        height: 22,
-        color: MenuPalette.inkSoft.withValues(alpha: 0.20),
-      );
+    width: 2,
+    height: 22,
+    color: MenuPalette.inkSoft.withValues(alpha: 0.20),
+  );
 }
 
 /// Fades and lifts its child into place once, on arrival.
@@ -750,7 +759,10 @@ class _PopIn extends StatelessWidget {
         // Vertical only. The title and the play button are both asserted to be
         // centred to within two points, and a horizontal entrance that landed
         // a frame late would be a genuinely baffling test failure.
-        child: Transform.translate(offset: Offset(0, (1 - v) * 20), child: child),
+        child: Transform.translate(
+          offset: Offset(0, (1 - v) * 20),
+          child: child,
+        ),
       ),
       child: child,
     );
@@ -809,16 +821,16 @@ class _BubbleTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => BubbleText(
-        text: 'PITCHPOLE',
-        keyline: compact ? 7 : 9,
-        gradient: MenuPalette.rainbow,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: compact ? 30 : 40,
-          letterSpacing: compact ? 3 : 5,
-          fontWeight: FontWeight.w900,
-        ),
-      );
+    text: 'PITCHPOLE',
+    keyline: compact ? 7 : 9,
+    gradient: MenuPalette.rainbow,
+    style: TextStyle(
+      color: Colors.white,
+      fontSize: compact ? 30 : 40,
+      letterSpacing: compact ? 3 : 5,
+      fontWeight: FontWeight.w900,
+    ),
+  );
 }
 
 class _SettingsHeading extends StatelessWidget {

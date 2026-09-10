@@ -148,6 +148,22 @@ class AdsController extends ChangeNotifier {
   /// Whether an interstitial is loaded and could be shown right now.
   bool get hasAdReady => _interstitial != null;
 
+  /// Whether a full screen ad is covering the game right now.
+  ///
+  /// The cleared panel waits on this. Its stars pop in one at a time and its
+  /// confetti falls once, and both used to start the moment the panel was
+  /// built — which is the same moment the break opens over the top of it. The
+  /// celebration played to nobody and the player dismissed the ad onto three
+  /// stars already sitting still.
+  bool get isShowingAd => _showing;
+
+  /// Test seam: stands an ad up in front of the game without a platform.
+  @visibleForTesting
+  set debugShowingAd(bool value) {
+    _showing = value;
+    notifyListeners();
+  }
+
   /// Whether an extra life can actually be offered. The button is hidden when
   /// this is false: offering a reward the game cannot deliver is worse than
   /// not offering one.

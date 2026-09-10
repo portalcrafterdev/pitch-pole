@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../chapters.dart';
 import '../home_scene/sky_art.dart';
 import '../menu_palette.dart';
 import '../widgets/bubble_text.dart';
+import '../widgets/pressable.dart';
 import '../widgets/star_row.dart';
 import 'game_screen.dart';
 
@@ -308,6 +310,11 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                               Expanded(
                                 child: ListView.builder(
                                   controller: _controller,
+                                  // Springy rather than the flat Android
+                                  // clamp. A list that pushes back at its ends
+                                  // is the only thing a scroll can say about
+                                  // where it has got to.
+                                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                                   padding: _Grid.padding,
                                   itemExtent: grid.blockHeight,
                                   itemCount: (count / kChapterSize).ceil(),
@@ -673,13 +680,18 @@ class _Chapter extends StatelessWidget {
             itemCount: tiles,
             itemBuilder: (context, i) {
               final id = first + i;
-              return _LevelTile(
-                levelId: id,
-                stars: progressStore.starsFor(id),
-                bestSeconds: progressStore.bestSecondsFor(id),
-                unlocked: progressStore.isUnlocked(id),
-                isNext: id == next,
-                onTap: () => onOpen(id),
+              return _ArriveIn(
+                // Staggered along the row, so a chapter lands as a sweep
+                // rather than as one block appearing at once.
+                delay: Duration(milliseconds: 18 * (i % kChapterSize)),
+                child: _LevelTile(
+                  levelId: id,
+                  stars: progressStore.starsFor(id),
+                  bestSeconds: progressStore.bestSecondsFor(id),
+                  unlocked: progressStore.isUnlocked(id),
+                  isNext: id == next,
+                  onTap: () => onOpen(id),
+                ),
               );
             },
           ),
@@ -755,6 +767,69 @@ class _Rule extends StatelessWidget {
   }
 }
 
+/// Fades and lifts its child in once, [delay] after it is first built.
+///
+/// The grid is lazy, so a tile is built the moment it comes near the viewport
+/// and this runs as it arrives — which is what makes scrolling a chapter feel
+/// like the tiles are coming to meet you rather than like a page of them was
+/// already there and the window merely moved.
+///
+/// Once only. It plays on the way in and never again, so scrolling back over
+/// a tile does not make it flash a second time.
+class _ArriveIn extends StatefulWidget {
+  const _ArriveIn({required this.child, required this.delay});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_ArriveIn> createState() => _ArriveInState();
+}
+
+class _ArriveInState extends State<_ArriveIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _in = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+
+  Timer? _wait;
+
+  @override
+  void initState() {
+    super.initState();
+    // Held so it can be cancelled. A grid of ten thousand tiles builds and
+    // throws away a lot of these while a thumb is moving, and a delay that
+    // outlives its tile is a callback into a disposed widget.
+    _wait = Timer(widget.delay, _in.forward);
+  }
+
+  @override
+  void dispose() {
+    _wait?.cancel();
+    _in.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curve = CurvedAnimation(parent: _in, curve: Curves.easeOutBack);
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (context, child) => Opacity(
+        // Clamped, because easeOutBack overshoots past one and an opacity
+        // over one throws.
+        opacity: _in.value.clamp(0.0, 1.0),
+        child: Transform.translate(
+          offset: Offset(0, 14 * (1 - curve.value)),
+          child: Transform.scale(scale: 0.88 + 0.12 * curve.value, child: child),
+        ),
+      ),
+      child: widget.child,
+    );
+  }
+}
+
 class _LevelTile extends StatelessWidget {
   const _LevelTile({
     required this.levelId,
@@ -807,16 +882,13 @@ class _LevelTile extends StatelessWidget {
             ? [BoxShadow(color: edge, offset: const Offset(0, 5))]
             : null,
       ),
-      child: Material(
-        color: fill,
+      child: Pressable(
+        // Null on a locked tile: it must not answer a tap it is going to
+        // ignore, which is a promise the tile cannot keep.
+        onPressed: unlocked ? onTap : null,
         borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: unlocked
-              ? () {
-                  MenuAudio.instance.tap();
-                  onTap();
-                }
-              : null,
+        child: Material(
+          color: fill,
           borderRadius: BorderRadius.circular(20),
           child: Container(
             decoration: BoxDecoration(

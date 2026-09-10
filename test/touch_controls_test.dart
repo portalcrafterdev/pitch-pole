@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pitchpole/data/progress_store.dart';
 import 'package:pitchpole/game/logic/run_state.dart';
 import 'package:pitchpole/ui/overlays/pause_menu.dart';
+import 'package:pitchpole/ui/widgets/pressable.dart';
 import 'package:pitchpole/ui/widgets/touch_controls.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -57,6 +58,74 @@ void main() {
       await settle(tester);
 
       expect(pressed, [RunInput.flipDown]);
+    });
+
+    testWidgets('the ring drawn at the finger never eats the next tap',
+        (tester) async {
+      // Every touch in a level is an input, so the thing drawn to acknowledge
+      // one must not be able to swallow the one after it. A ring that opened
+      // over the half and took hits would drop inputs for a quarter of a
+      // second at a time, which is a death the player cannot account for.
+      final pressed = await mount(tester, scheme: ControlScheme.halves);
+
+      for (var i = 0; i < 4; i++) {
+        await tester.tapAt(const Offset(200, 200));
+        // Mid ring: the next tap lands while the last one is still open.
+        await tester.pump(const Duration(milliseconds: 90));
+      }
+      await tester.pumpAndSettle();
+
+      expect(pressed.length, 4,
+          reason: 'four taps, four inputs, whatever is being drawn on top');
+    });
+
+    testWidgets('a pressable button answers a tap and still fires it',
+        (tester) async {
+      // Same rule as the ring in a run: the thing drawn to acknowledge a tap
+      // sits behind an IgnorePointer, so pressing a button while its last
+      // ring is still open must not lose the press.
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: Pressable(
+                onPressed: () => taps++,
+                borderRadius: BorderRadius.circular(16),
+                child: const SizedBox(width: 120, height: 60),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      for (var i = 0; i < 3; i++) {
+        await tester.tap(find.byType(Pressable));
+        await tester.pump(const Duration(milliseconds: 90));
+      }
+      await tester.pumpAndSettle();
+
+      expect(taps, 3);
+    });
+
+    testWidgets('a dead target neither rings nor fires', (tester) async {
+      // A locked level tile. It must not answer a tap it is going to ignore.
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: Pressable(
+                onPressed: null,
+                child: SizedBox(width: 120, height: 60),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(Pressable));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('there are no buttons to miss', (tester) async {
